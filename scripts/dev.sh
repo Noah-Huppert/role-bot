@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+declare -r PROG_DIR=$(dirname $(realpath "$0"))
+source "$PROG_DIR/common.sh"
+
+declare -r DEPS_LOCK_PATH=$(realpath "$PROG_DIR/../yarn.lock")
+declare -r DEPS_PATH=$(realpath "$PROG_DIR/../node_modules")
+
+declare -ri EXIT_DEPS_INSTALL=10
+declare -ri EXIT_DEPS_TOUCH=11
+declare -ri EXIT_RUN_DEV=12
+
+if [[ ! -d "$DEPS_PATH" ]] || compare_file "$DEPS_LOCK_PATH" "$DEPS_PATH"; then
+  log "Dependencies need to be updated"
+  
+  run_check "yarn install" "$EXIT_DEPS_INSTALL" "Failed to install dependencies"
+  run_check "touch $DEPS_PATH" "$EXIT_DEPS_TOUCH" "Failed to update last modified date of dependencies path"
+
+  log "Dependencies updated"
+fi
+
+log "Running development server"
+run_check "yarn dev" "$EXIT_RUN_DEV" "Failed to run development mode"
