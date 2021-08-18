@@ -19,5 +19,5 @@ if [[ ! -d "$DEPS_PATH" ]] || compare_file "$DEPS_LOCK_PATH" "$DEPS_PATH"; then
   log "Dependencies updated"
 fi
 
-log "Running development server"
-run_check "yarn dev" "$EXIT_RUN_DEV" "Failed to run development mode"
+log "Running development server in watch mode"
+run_check "yarn watch" "$EXIT_RUN_DEV" "Failed to run development mode"

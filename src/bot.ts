@@ -75,16 +75,18 @@ export class Bot {
   async init() {
     // Setup slash commands
     console.log(`Invite bot to server: https://discord.com/api/oauth2/authorize?client_id=${this.cfg.discord.clientID}&scope=bot&permissions=${DISCORD_SCOPE}`)
-    for (const guildID of this.cfg.discord.guildIDs) {
+    for (const nickname in this.cfg.discord.guildIDs) {
+      const guildID = this.cfg.discord.guildIDs[nickname];
+      
       try {
         await this.discordREST.put(
           DiscordRoutes.applicationGuildCommands(this.cfg.discord.clientID, guildID),
           { body: DISCORD_CMDS }
         );
         
-        console.log(`Updated Discord slash commands for guild "${guildID}`);
+        console.log(`Updated Discord slash commands for guild (${nickname} ${guildID})`);
       } catch (e) {
-        throw new Error(`Failed to authorize with guild ${guildID}`);
+        throw new Error(`Failed to install Discord slash commands in guild (${nickname} ${guildID})`);
       }
     }
   }
