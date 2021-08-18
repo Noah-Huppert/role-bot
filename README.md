@@ -29,15 +29,22 @@ To run and develop the bot:
    ```shell
    yarn install
    ```
-2. Start development watch serer:
+2. Source environment variables
+   ```shell
+   source ./.env
+   ```
+3. Start development watch serer:
    ```shell
    yarn watch
    ```
 
 # Configuration
-Provided by environment variables. See [`config.ts`](./src/config.ts) documentation comments for names of associated environment variables.
+Environment variables are used to provide all configuration values. See [`config.ts`](./src/config.ts) documentation comments for names of associated environment variables and their purposes.
 
-Copy `.env-example` to `.env` and set your own values.
+The `.env` file is expected to have configuration values. This file is ignored by Git as some values are secret. 
+
+1. Copy `.env-example` to `.env` and set your own values.
+2. Never commit the `.env` file
 
 ## Discord
 The chat bot requires the Discord API.
@@ -55,7 +62,7 @@ To authenticate with the Discord API you must create a Discord API Application:
 ### Discord Guild IDs
 The `ROLE_BOT_DISCORD_GUILD_IDS` environment variable specifies for which Discord servers the bot will install and respond to commands.
 
-The environment variable value is a list of server nicknames, and their guild IDs. The server nickname is just name by which this Discord server will be referred to by the bots program. 
+The environment variable value is a list of server nicknames, and their guild IDs. The server nickname is just a name by which this Discord server will be referred to by the bots program. 
 
 List items are in the format `<nickname>=<guild ID>`. They are separated by commas.
 
