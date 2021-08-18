@@ -81,11 +81,11 @@ List items are in the format `<nickname>=<guild ID>`. They are separated by comm
 
 To find a Discord server's guild ID:
 
-1. Enable developer mode in your Discord:
-  1.1. Open your Discord
-  1.2. Go to settings
-  1.3. In the Advanced tab enable the Developer mode option
-2. Retrieve a Discord server's guild ID
-  2.1. View your server list on the left-hand side of the Discord client
-  2.2. Right click on the server for which you want to retrieve the ID 
-  2.3. At the very bottom of the right-click menu select Copy ID, use this value
+1. Enable developer mode in your Discord:  
+   1.1. Open your Discord  
+   1.2. Go to settings  
+   1.3. In the Advanced tab enable the Developer mode option  
+2. Retrieve a Discord server's guild ID:  
+   2.1. View your server list on the left-hand side of the Discord client  
+   2.2. Right click on the server for which you want to retrieve the ID  
+   2.3. At the very bottom of the right-click menu select Copy ID, use this value  
