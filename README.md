@@ -39,7 +39,7 @@ To run and develop the bot:
    ```
 
 # Configuration
-Environment variables are used to provide all configuration values. See [`config.ts`](./src/config.ts) documentation comments for names of associated environment variables and their purposes.
+Environment variables are used to provide all configuration values. See the `Config` class field documentation comments in [`config.ts`](./src/config.ts) for names of associated environment variables and their purposes.
 
 The `.env` file is expected to have configuration values. This file is ignored by Git as some values are secret. 
 
