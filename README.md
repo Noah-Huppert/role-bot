@@ -7,7 +7,7 @@ Discord role bot.
 - [Configuration](#configuration)
 
 # Overview
-Typescript Discord bot which assigns roles to user.
+Typescript Discord bot which assigns roles to users.
 
 # Development
 1. Install dependencies:
@@ -20,10 +20,6 @@ Typescript Discord bot which assigns roles to user.
    ```
 
 # Configuration
-Provided by environment variables:
-
-- `ROLE_BOT_DISCORD_CLIENT_ID`
-- `ROLE_BOT_DISCORD_GUILD_IDS`
-- `ROLE_BOT_DISCORD_API_TOKEN`
+Provided by environment variables. See [`config.ts`](./src/config.ts) documentation comments for names of associated environment variables.
 
 Copy `.env-example` to `.env` and set your own values.
