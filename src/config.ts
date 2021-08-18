@@ -1,3 +1,9 @@
+/**
+ * Ensure an environment variable has a value.
+ * @throws Error
+ * Thrown if the environment variable was not defined.
+ * @returns Environment variable value
+ */
 function unwrapEnv(key: string): string {
   const value = process.env[key];
   if (value === undefined) {

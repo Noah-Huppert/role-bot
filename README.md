@@ -10,6 +10,21 @@ Discord role bot.
 Typescript Discord bot which assigns roles to users.
 
 # Development
+## Docker Compose
+A Docker container is provided with NodeJS and Yarn installed. Docker and Docker Compose must be installed.
+
+To run and develop the bot:
+
+1. Start the Docker Compose stack:
+   ```shell
+   docker-compose up -d
+   ```
+
+## Manual Steps
+NodeJS and Yarn must be installed.
+
+To run and develop the bot:
+
 1. Install dependencies:
    ```shell
    yarn install
