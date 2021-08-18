@@ -55,9 +55,9 @@ To authenticate with the Discord API you must create a Discord API Application:
 1. Navigate to the [Discord Developer Portal](https://discord.com/developers/applications)
 2. Create a new application
 3. Navigate to the Bot page and add a bot
-4. Find values for configuration:
-  - `ROLE_BOT_DISCORD_CLIENT_ID`: Go to your Discord application's General Information page, use the "APPLICATION ID" value
-  - `ROLE_BOT_DISCORD_API_TOKEN`: Go to your Discord application's Bot page, use the "TOKEN" value
+4. Find values for configuration:  
+   - `ROLE_BOT_DISCORD_CLIENT_ID`: Go to your Discord application's General Information page, use the "APPLICATION ID" value  
+   - `ROLE_BOT_DISCORD_API_TOKEN`: Go to your Discord application's Bot page, use the "TOKEN" value  
   
 ### Discord Guild IDs
 The `ROLE_BOT_DISCORD_GUILD_IDS` environment variable specifies for which Discord servers the bot will install and respond to commands.
