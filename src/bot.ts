@@ -8,23 +8,41 @@ import {
   Client as DiscordClient,
   Intents as DiscordIntents,
   Interaction as DiscordInteraction,
+  MessageActionRow,
 } from "discord.js";
+import {
+  createConnection as createDBConnection,
+  Connection as DBConnection,
+} from "typeorm";
 
 import { Config } from "./config";
+import { SelectRoleListView } from "./components/SelectRoleListView";
 
 /**
  * Discord permission scope.
- * General permissions: manage roles
- * Text permissions: use slash commands
+ * 
+ * Permissions:
+ * - General permissions
+ *   - Manage roles
+ * - Text permissions
+ *   - Use slash commands
  */
-export const DISCORD_SCOPE = 2415919104;
+export const DISCORD_INVITE_PERMS = 2415919104;
+
+/**
+ * Scopes required for OAuth.
+ */
+export const DISCORD_OAUTH_SCOPES = [
+  "applications.commands",
+  "bot",
+];
 
 /**
  * Discord slash command definitions.
  */
 export const DISCORD_CMDS = [
   {
-    name: "admin-list",
+    name: "role-lists",
     description: "Edit or create role lists.",
   },
 ];
@@ -50,6 +68,11 @@ export class Bot {
   discordAPI: DiscordClient;
 
   /**
+   * Database client. Lazy initialized. Retrieve via db().
+   */
+  _db?: DBConnection;
+
+  /**
    * Setup bot.
    */
   constructor() {
@@ -70,11 +93,32 @@ export class Bot {
   }
 
   /**
+   * Retrieve or lazy initialize database client.
+   */
+  async db(): Promise<DBConnection> {
+    if (this._db === undefined) {
+      this._db = await createDBConnection({
+        type: "postgres",
+        host: this.cfg.postgres.host,
+        port: this.cfg.postgres.port,
+        username: this.cfg.postgres.username,
+        password: this.cfg.postgres.password,
+        database: this.cfg.postgres.database,
+        synchronize: this.cfg.postgres.destructiveAutoMigrate,
+      });
+    }
+    
+    return this._db;
+  }
+
+  /**
    * Initializes bot slash commands.
    */
   async init() {
     // Setup slash commands
-    console.log(`Invite bot to server: https://discord.com/api/oauth2/authorize?client_id=${this.cfg.discord.clientID}&scope=bot&permissions=${DISCORD_SCOPE}`)
+    const discordOAuthLink = `https://discord.com/api/oauth2/authorize?client_id=${this.cfg.discord.clientID}&scope=${encodeURIComponent(DISCORD_OAUTH_SCOPES.join(" "))}&permissions=${DISCORD_INVITE_PERMS}`;
+    console.log(`Authorize the Discord bot, visit this link:
+${discordOAuthLink}`)
     for (const nickname in this.cfg.discord.guildIDs) {
       const guildID = this.cfg.discord.guildIDs[nickname];
       
@@ -86,7 +130,7 @@ export class Bot {
         
         console.log(`Updated Discord slash commands for guild (${nickname} ${guildID})`);
       } catch (e) {
-        throw new Error(`Failed to install Discord slash commands in guild (${nickname} ${guildID})`);
+        throw new Error(`Failed to install Discord slash commands in guild (${nickname} ${guildID}): ${e}`);
       }
     }
   }
@@ -103,5 +147,18 @@ export class Bot {
    */
   async onDiscordInteraction(interaction: DiscordInteraction) {
     console.log(`Received interaction: ${interaction}`);
+
+    // Ensure for a guild we are serving
+    if (!interaction?.guildId || !Object.values(this.cfg.discord.guildIDs).includes(interaction.guildId)) {
+      return;
+    }
+
+    // Handle if command
+    if (interaction.isCommand()) {
+      interaction.reply({
+        content: "Select role list to edit, or create a new role list",
+        components: SelectRoleListView(),
+      });
+    }
   }
 }

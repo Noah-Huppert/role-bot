@@ -1,4 +1,12 @@
 services:
+  postgres:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: devrolebot
+      POSTGRES_PASSWORD: devrolebot
+      POSTGRES_DB: devrolebot
+    volumes:
+      - "postgresdata:/var/lib/postgresql/data/"
   bot:
     image: node:16.6.2
     volumes:
@@ -7,3 +15,6 @@ services:
     command: ./scripts/dev.sh
     restart: always
     env_file: ./.env
+volumes:
+  postgresdata:
+    driver: local

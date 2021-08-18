@@ -1,3 +1,4 @@
+import "reflect-metadata"; // Required for typeorm
 import { Bot } from "./bot";
 
 async function main(): Promise<void> {
