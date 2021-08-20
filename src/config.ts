@@ -53,6 +53,12 @@ export class Config {
      *          Comma seperated list of "<name>=<id>"
      */
     guildIDs: { [key: string]: string };
+
+    /**
+     * A Discord server is required which will host the bot's custom emojis. Specify this Discord server's guild ID in the guildIDs field, then provide the name of the key in guildIDs of this server.
+     * Env var: ROLE_BOT_DISCORD_EMOJI_GUILD
+     */
+    emojiGuild: string;
     
     /**
      * Discord API authentication token.
@@ -109,6 +115,7 @@ export class Config {
     this.discord = {
       clientID: unwrapEnv("ROLE_BOT_DISCORD_CLIENT_ID"),
       guildIDs: strObjFromTuples(unwrapEnv("ROLE_BOT_DISCORD_GUILD_IDS").split(",").map(parseEnvKV)),
+      emojiGuild: unwrapEnv("ROLE_BOT_DISCORD_EMOJI_GUILD"),
       apiToken: unwrapEnv("ROLE_BOT_DISCORD_API_TOKEN"),
     };
 
