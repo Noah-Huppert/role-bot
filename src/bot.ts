@@ -89,8 +89,8 @@ export type CustomDiscordEmojiDef = {
  * List of custom emoji details.
  */
 export const CUSTOM_DISCORD_EMOJIS: { [key: string]: CustomDiscordEmojiDef } = {
-  "plus": {
-    file: "plus.png",
+  "create": {
+    file: "create.png",
   },
 };
 
@@ -222,7 +222,6 @@ export class Bot {
         });
         const existingContent = resp.data;
 
-        console.log(filePath, fileContents, emoji.url, existingContent);
         if (!Buffer.compare(fileContents, existingContent)) {
           console.log(`Deleting existing custom emoji ${emojiName} ${emoji.id} because image changed`);
           await emoji.delete(`${emojiName} image changed, updating`);

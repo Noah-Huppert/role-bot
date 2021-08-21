@@ -19,6 +19,12 @@ export class RoleList {
   id: number;
 
   /**
+   * ID of Discord emoji to show for list.
+   */
+  @Column()
+  emoji: string;
+
+  /**
    * Friendly name which will be displayed to users.
    */
   @Column()
