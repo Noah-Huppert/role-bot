@@ -8,7 +8,7 @@ import {
   InteractionHandler,
   CommandMatcher,
   SelectMenuMatcher,
-} from "./interaction-handler";
+} from "./interaction-registry";
 import {
   ViewArgs,
   BaseView,
@@ -31,14 +31,14 @@ export enum RoleListsViewActions {
 /**
  * Administer select role to edit or create new role.
  */
-export class RoleListsView extends BaseView<CommandInteraction> {
+export class RoleListsView extends BaseView implements InteractionHandler<CommandInteraction> {
   constructor(context: ViewArgs) {
     super(context);
     
     this.match = new CommandMatcher(ROLE_LIST_CMD.name).match;
   }
   
-  registerHandlers(interaction: Interaction): InteractionHandler[] {
+  children(): InteractionHandler[] {
     return [
       new OnRoleSelectView(this.context), 
     ];

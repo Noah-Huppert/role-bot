@@ -21,6 +21,11 @@ export interface InteractionMatcher<O extends Interaction> {
  */
 export interface InteractionHandler<O extends Interaction> extends InteractionMatcher<O> {
   /**
+   * @returns A list of handlers to process interactions created by the user interacting with this handler.
+   */
+  children(): InteractionHandler[];
+  
+  /**
    * Process an interaction.
    */
   handle(interaction: O): Promise<void>;
@@ -29,7 +34,7 @@ export interface InteractionHandler<O extends Interaction> extends InteractionMa
 /**
  * Match a command interaction.
  */
-export abstract class CommandMatcher implements InteractionMatcher<CommandInteraction> {
+export class CommandMatcher implements InteractionMatcher<CommandInteraction> {
   /**
    * Name of the command.
    */
@@ -58,7 +63,7 @@ export abstract class CommandMatcher implements InteractionMatcher<CommandIntera
 /**
  * Match a select menu interaction.
  */
-export abstract class SelectMenuMatcher implements InteractionMatcher<SelectMenuInteraction> {
+export class SelectMenuMatcher implements InteractionMatcher<SelectMenuInteraction> {
   /**
    * Custom ID of select menu.
    */
@@ -91,14 +96,19 @@ export class InteractionRegistry {
   handlers: InteractionHandler[];
 
   constructor(handlers: InteractionHandler[]=[]) {
-    this.handlers = handlers;
+    this.handlers = [];
+    this.register(handlers);
   }
 
   /**
    * Save handlers to match and process incoming Discord interactions.
+   * Registers children handlers recursively.
    */
   register(handlers: InteractionHandler[]) {
     this.handlers.push(...handlers);
+    for (const handler of handlers) {
+      this.register(handler.children());
+    }
   }
 
   /**

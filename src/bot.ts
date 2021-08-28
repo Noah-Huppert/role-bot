@@ -21,8 +21,10 @@ import {
 
 import { Config } from "./config";
 import {
-  ROLE_LIST_CMD,
-} from "./views/role-lists";
+  DISCORD_CMDS,
+  collectHandlers,
+} from "./views";
+import { InteractionRegistry } from "./views/interaction-registry";
 
 /**
  * Discord bot permissions for normal servers which us te bot.
@@ -55,13 +57,6 @@ export const DISCORD_EMOJI_INVITE_PERMS = 3489923072;
 export const DISCORD_OAUTH_SCOPES = [
   "applications.commands",
   "bot",
-];
-
-/**
- * Discord slash command definitions.
- */
-export const DISCORD_CMDS = [
-  ROLE_LIST_CMD,
 ];
 
 /**
@@ -144,10 +139,10 @@ export class Bot {
     this.discordAPI.login(this.cfg.discord.apiToken);
     this.customDiscordEmojiIDs = {};
 
-    this.interactionRegistry = new InteractionRegistry({
+    this.interactionRegistry = new InteractionRegistry(collectHandlers({
       discordAPI: this.discordAPI,
       customDiscordEmojiIDs: this.customDiscordEmojiIDs,
-    });
+    }));
   }
 
   /**

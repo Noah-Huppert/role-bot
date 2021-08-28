@@ -6,19 +6,20 @@ import {
   RoleListsViewActions,
 } from "./index";
 import {
+  InteractionHandler,
   SelectMenuMatcher,
 } from "../interaction-registry";
 
 /**
  * View which handles a role list option being selected.
  */
-export class OnRoleSelectView extends BaseView<SelectMenuInteraction> {
+export class OnRoleSelectView extends BaseView implements InteractionHandler<SelectMenuInteraction> {
   constructor(context: ViewArgs) {
     super(context);
     this.match = new SelectMenuMatcher(RoleListsViewActions.RoleSelect).match;
   }
 
-  registerHandlers(interaction: Interaction): InteractionHandler[] {
+  children(): InteractionHandler[] {
     return [];
   }
 
