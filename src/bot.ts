@@ -21,11 +21,8 @@ import {
 
 import { Config } from "./config";
 import {
-  ComponentFactory,
-  BaseComponent,
-  BaseComponentArgs,
-} from "./components/base";
-import { SelectRoleList } from "./components/select-role-list";
+  ROLE_LIST_CMD,
+} from "./views/role-lists";
 
 /**
  * Discord bot permissions for normal servers which us te bot.
@@ -64,10 +61,7 @@ export const DISCORD_OAUTH_SCOPES = [
  * Discord slash command definitions.
  */
 export const DISCORD_CMDS = [
-  {
-    name: "role-lists",
-    description: "Edit or create role lists.",
-  },
+  ROLE_LIST_CMD,
 ];
 
 /**
@@ -126,9 +120,9 @@ export class Bot {
   _db?: DBConnection;
 
   /**
-   * Discord interaction component factory.
+   * Handles routing Discord interactions to handlers.
    */
-  componentFactory: ComponentFactory;
+  interactionRegistry: InteractionRegistry;
 
   /**
    * Setup bot.
@@ -150,7 +144,7 @@ export class Bot {
     this.discordAPI.login(this.cfg.discord.apiToken);
     this.customDiscordEmojiIDs = {};
 
-    this.componentFactory = new ComponentFactory({
+    this.interactionRegistry = new InteractionRegistry({
       discordAPI: this.discordAPI,
       customDiscordEmojiIDs: this.customDiscordEmojiIDs,
     });
@@ -248,13 +242,6 @@ export class Bot {
   }
 
   /**
-   * Shortcut to call the ComponentFactory.hydrate() factory.
-   */
-  async hydrate(cls: new (args: BaseComponentArgs) => BaseComponent): Promise<MessageActionRow[]> {
-    return await this.componentFactory.hydrate(cls);
-  }
-
-  /**
    * Handles when the Discord API client has logged in.
    */
   onDiscordReady() {
@@ -273,12 +260,7 @@ export class Bot {
       return;
     }
 
-    // Handle if command
-    if (interaction.isCommand()) {
-      interaction.reply({
-        content: "Select role list to edit, or create a new role list",
-        components: await this.hydrate(SelectRoleList),
-      });
-    }
+    // Handle interaction
+    await this.interactionRegistry.onInteraction(interaction);
   }
 }
