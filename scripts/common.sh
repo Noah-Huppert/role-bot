@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 
-declare -ri TRUE=$(true ; "$?")
-declare -ri FALSE=$(false ; "$?")
-
-declare -r PROG_DIR=$(dirname $(realpath "$0"))
+declare -ri TRUE=0
+declare -ri FALSE=1
 
 # Log message to stdout
 log() { # ( msg )
