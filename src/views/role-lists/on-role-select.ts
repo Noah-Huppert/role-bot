@@ -13,17 +13,16 @@ import {
 /**
  * View which handles a role list option being selected.
  */
-export class OnRoleSelectView extends BaseView implements InteractionHandler<SelectMenuInteraction> {
+export class OnRoleSelectView<O = SelectMenuInteraction> extends BaseView<O> implements InteractionHandler<O> {
   constructor(context: ViewArgs) {
-    super(context);
-    this.match = new SelectMenuMatcher(RoleListsViewActions.RoleSelect).match;
+    super(context, new SelectMenuMatcher(RoleListsViewActions.RoleSelect));
   }
 
   children(): InteractionHandler[] {
     return [];
   }
 
-  async handle(interaction: SelectMenuInteraction): Promise<void> {
+  async handle(interaction: O): Promise<void> {
     console.log(`on role select, interaction=${interaction}`);
   }
 }

@@ -31,11 +31,9 @@ export enum RoleListsViewActions {
 /**
  * Administer select role to edit or create new role.
  */
-export class RoleListsView extends BaseView implements InteractionHandler<CommandInteraction> {
+export class RoleListsView<O = CommandInteraction> extends BaseView<O> implements InteractionHandler<O> {
   constructor(context: ViewArgs) {
-    super(context);
-    
-    this.match = new CommandMatcher(ROLE_LIST_CMD.name).match;
+    super(context, new CommandMatcher(ROLE_LIST_CMD.name));
   }
   
   children(): InteractionHandler[] {
@@ -44,7 +42,7 @@ export class RoleListsView extends BaseView implements InteractionHandler<Comman
     ];
   }
   
-  async handle(interaction: CommandInteraction): Promise<void> {
+  async handle(interaction: O): Promise<void> {
     console.log(`on role-lists admin command, interaction=${interaction}`);
   }
 }
