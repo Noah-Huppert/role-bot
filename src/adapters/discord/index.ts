@@ -101,6 +101,7 @@ class DiscordAdapter {
     this.discordCommandAdapater = new DiscordCommandAdapater({
       discordGuildIDs,
       discordAPIToken,
+      commands: [],
     });
   }
 

@@ -19,13 +19,11 @@ interface DiscordCommand {
    * User guide text shown in the Discord UI.
    */
   description: string;
-}
 
-/**
- * Names of Discord commands being handled by the adapter.
- */
-enum DiscordCommand {
-  ListRoles = "roles";
+  /**
+   * The adapter logic for this command.
+   */
+  handler: () => Promise<void>;
 }
 
 /**
@@ -42,13 +40,21 @@ export class DiscordCommandAdapter {
    */
   discordREST: DiscordREST;
 
+  /**
+   * Slash commands the adapter will serve.
+   */
+  commands: DiscordCommand[];
+
   constructor({
     discordGuildIDs,
-    discordREST,
+    discordAPIToken,
+    commands,
   }: {
-    discordguildIDs: string[];
-    discordREST: DiscordREST;
+    discordGuildIDs: string[];
+    discordAPIToken: string;
+    commands: DiscordCommand[];
   }) {
+    this.discordGuildIDs = discordGuildIDs;
     this.discordREST = new DiscordREST({
       version: "9",
     }).setToken(discordAPIToken);
@@ -58,13 +64,17 @@ export class DiscordCommandAdapter {
    * Setup adapter's connection to the discord API.
    */
   async setup(): Promise<void> {
-    for (const // TODO Do bot.ts
+    for (const nickname in this.discordGuildIDs) {
+      const guildID = this.discordGuildIDs[nickname];
+
+      this.updateGuildCommands(guildID, this.commands);
+    }
   }
   
   /**
    * Register the commands this manager is aware of with the Discord API.
    */
-  async updateGuildCommands(guildID: string, commands: Command[]): Promise<void> {
+  async updateGuildCommands(guildID: string, commands: DiscordCommand[]): Promise<void> {
     const updateGuildAPIPath = DiscordRoutes.applicationGuildCommands(this.discordClientID, guildID);
     await this.discordREST.put(updateGuildAPIPath, {
       body: this.commands,
@@ -76,13 +86,6 @@ export class DiscordCommandAdapter {
    * Handler which is called when a new Discord command interaction is received from the Discord API.
    */
   async onCommandInteraction(command: CommandInteraction) {
-    switch (command.commandName) {
-      case DiscordCommand.ListRoles:
-        console.log("on list roles");
-        break;
-      default:
-        console.error(`unknown command: ${command.commandName}`);
-        break;
-    }
+    
   }
 }
