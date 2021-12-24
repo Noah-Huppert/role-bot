@@ -10,7 +10,9 @@ declare -r ARG_ACTION_RESTART="restart"
 declare -r ARG_ACTION_SHELL="shell"
 declare -r ARG_ACTION_NAMES=("$ARG_ACTION_RESTART" "$ARG_ACTION_SHELL")
 
+declare -r ARG_ACTION_SHELL_SPEC="shell(=([a-zA-Z-]+))?=(.*)"
 declare -r ARG_ACTION_SHELL_DEFAULT_SVC="bot"
+declare -r ARG_ACTION_SHELL_DEFAULT_CMD="bash"
 
 # Exit codes
 # ... Options
@@ -33,7 +35,13 @@ declare -r EXIT_MSG_ARG_ACTION_RESTART_DO="Failed to restart services"
 
 # ... ... Shell action
 declare -ri EXIT_CODE_ARG_ACTION_SHELL_PARSE=40
-declare -r EXIT_MSG_ARG_ACTION_SHELL_PARSE="Failed to parse shell action"
+declare -r EXIT_MSG_ARG_ACTION_SHELL_PARSE="Failed to parse shell action specification"
+
+declare -ri EXIT_CODE_ARG_ACTION_SHELL_PARSE_SVC=41
+declare -r EXIT_MSG_ARG_ACTION_SHELL_PARSE_SVC="Failed to parse SVC argument from shell action specification"
+
+declare -ri EXIT_CODE_ARG_ACTION_SHELL_PARSE_CMD=42
+declare -r EXIT_MSG_ARG_ACTION_SHELL_PARSE_CMD="Failed to parse CMD argument from shell action specification"
 
 declare -ri EXIT_CODE_ARG_ACTION_SHELL_DO=41
 declare -r EXIT_MSG_ARG_ACTION_SHELL_DO="Failed to run shell command in Docker service"
@@ -72,9 +80,15 @@ ACTIONS
 
         After bringing up Docker compose stack restart these services.
 
-    shell=[SVC]=CMD
+    shell[=SVC]=[CMD]
 
-        After bringing up Docker compose stack, execute a command in a service's Docker container. The SVC can be omitted and will default to $ARG_ACTION_SHELL_DEFAULT_SVC.
+        After bringing up Docker compose stack, execute a command in a service's Docker container.
+
+        SVC    Docker compose service in which to run (Default: '$ARG_ACTION_SHELL_DEFAULT_SVC')
+        CMD    The command to run (Default: '$ARG_ACTION_SHELL_DEFAULT_CMD'
+               Note: To elide the argument you must still include an equals sign.
+                     Ex: shell=
+                     Wont work: shell
 
 BEHAVIOR
 
@@ -106,24 +120,24 @@ action_restart() { # ( action_spec )
 action_shell() { # ( action_spec )
   local -r action_spec="$1"
 
-  # Determine if the SVC was specified in the spec
-  # https://unix.stackexchange.com/a/18753
-  local -i num_equals
-  num_equals=$(run_check "awk -F '=' '{ print NF-1 }' <<< '$action_spec'" "$EXIT_CODE_ARG_ACTION_SHELL_PARSE" "$EXIT_MSG_ARG_ACTION_SHELL_PARSE") || exit
+  local svc
+  local cmd
 
-  local svc="$ARG_ACTION_SHELL_DEFAULT_SVC"
-  local cmd=""
+  if ! grep -E "$ARG_ACTION_SHELL_SPEC" <<< "$action_spec" &> /dev/null; then
+    die "$EXIT_CODE_ARG_ACTION_SHELL_PARSE" "$EXIT_MSG_ARG_ACTION_SHELL_PARSE"
+  fi
   
-  if (($num_equals >= 2)); then
-    # Service specified
-    svc=$(run_check "awk -F '=' '{ print \$2 }' <<< '$action_spec'" "$EXIT_CODE_ARG_ACTION_SHELL_PARSE" "$EXIT_MSG_ARG_ACTION_SHELL_PARSE") || exit
-    
-    cmd=$(run_check "cut -d'=' -f 3- - <<< '$action_spec'" "$EXIT_CODE_ARG_ACTION_SHELL_PARSE" "$EXIT_MSG_ARG_ACTION_SHELL_PARSE") || exit
-  else
-    # Service not specified
-    cmd=$(run_check "cut -d'=' -f 2- - <<< '$action_spec'" "$EXIT_CODE_ARG_ACTION_SHELL_PARSE" "$EXIT_MSG_ARG_ACTION_SHELL_PARSE") || exit
+  svc=$(run_check "sed -r 's/$ARG_ACTION_SHELL_SPEC/\2/' <<< '$action_spec'" "$EXIT_CODE_ARG_ACTION_SHELL_PARSE_SVC" "$EXIT_MSG_ARG_ACTION_SHELL_PARSE_CMD") || exit
+  cmd=$(run_check "sed -r 's/$ARG_ACTION_SHELL_SPEC/\3/' <<< '$action_spec'" "$EXIT_CODE_ARG_ACTION_SHELL_PARSE_CMD" "$EXIT_MSG_ARG_ACTION_SHELL_PARSE_CMD") || exit
+
+  if [[ -z "$svc" ]]; then
+    svc="$ARG_ACTION_SHELL_DEFAULT_SVC"
   fi
 
+  if [[ -z "$cmd" ]]; then
+    cmd="$ARG_ACTION_SHELL_DEFAULT_CMD"
+  fi
+  
   # Run action
   run_check "docker-compose exec $svc $cmd" "$EXIT_CODE_ARG_ACTION_SHELL_DO" "$EXIT_MSG_ARG_ACTION_SHELL_DO"
 }
