@@ -12,7 +12,7 @@ services:
     volumes:
       - "./:/opt/role-bot/"
     working_dir: /opt/role-bot/
-    command: ./scripts/dev.sh
+    command: ./scripts/dev-entrypoint.sh
     restart: always
     env_file: ./.env
 volumes:

@@ -17,8 +17,9 @@ To run and develop the bot:
 
 1. Start the Docker Compose stack:
    ```shell
-   docker-compose up -d
+   ./scripts/dev.sh
    ```
+   See `./scripts/dev.sh -h` for more advanced usage.
 
 ## Manual Steps
 NodeJS and Yarn must be installed.
@@ -37,6 +38,8 @@ To run and develop the bot:
    ```shell
    yarn watch
    ```
+   
+ The `./scripts/dev-entrypoint.sh` automates this process.
 
 # Configuration
 Environment variables are used to provide all configuration values. See the `Config` class field documentation comments in [`config.ts`](./src/config.ts) for names of associated environment variables and their purposes.
