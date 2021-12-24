@@ -31,7 +31,7 @@ run_check() { # ( cmd, fail_code, fail_msg )
   local -r fail_msg="$3"
 
   if ! eval "$cmd"; then
-    elog "Failed to run '$cmd'"
+    elog "Failed to run '$cmd' (in directory: '$PWD')"
     die "$fail_code" "$fail_msg"
   fi
 }
@@ -43,7 +43,7 @@ path_date() { # ( path )
 }
 
 # Compare if base path is newer than other path
-compare_file() { # ( base_path, other_path )
+check_file_newer() { # ( base_path, other_path )
   local -r base_path="$1"
   local -r other_path="$2"
 

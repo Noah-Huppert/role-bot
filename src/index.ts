@@ -1,20 +1,19 @@
-import "reflect-metadata"; // Required for typeorm
-import { Bot } from "./bot";
+import { DiscordAdapter } from "./roles/adapters/discord";
 
-async function main(): Promise<void> {
-  const bot = new Bot();
-  await bot.init();
+/**
+ * Primary entrypoint for the program.
+ */
+async function main() {
+  const discordAdapater = new DiscordAdapter();
 
-  await new Promise<void>((resolve, reject) => {
-    process.on("SIGINT", () => {
-      resolve();
-    });
-  });
+  await discordAdapter.main();
 }
 
-main().then(() => {
-  console.log("Done");
-}).catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+// Run entrypoint
+main()
+  .then(() => {
+    console.log("Done");
+  })
+  .catch((e) => {
+    console.error("Error", e);
+  });
