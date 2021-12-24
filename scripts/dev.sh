@@ -80,21 +80,25 @@ ACTIONS
 
         After bringing up Docker compose stack restart these services.
 
+        SVCS    The Docker compose services to restart.
+
     shell[=SVC]=[CMD]
 
         After bringing up Docker compose stack, execute a command in a service's Docker container.
 
-        SVC    Docker compose service in which to run (Default: '$ARG_ACTION_SHELL_DEFAULT_SVC')
-        CMD    The command to run (Default: '$ARG_ACTION_SHELL_DEFAULT_CMD'
-               Note: To elide the argument you must still include an equals sign.
-                     Ex: shell=
-                     Wont work: shell
+        SVC    Docker compose service in which to run (Default: '$ARG_ACTION_SHELL_DEFAULT_SVC').
+        CMD    The command to run (Default: '$ARG_ACTION_SHELL_DEFAULT_CMD')
+               Note: To elide this argument you must still include an equals sign.
+                     Works     : shell=
+                     Won't work: shell
 
 BEHAVIOR
 
-    Starts the Docker development setup if not running. Then tails its log.
+    Ensures the Docker development setup is running. Then tails its log.
 
-    Options and arguments which take a list of Docker compose services expect a comma seperated list.
+    Runs any number of special ACTIONS. These actions have customizable behavior via custom specifications found in the ACTIONS section. In these, any area surrounded by square brackets (ex., [xyz]) can be considered optional. Text which is ALL CAPS in these specifications are arguments. Documentation about arguments is shown below the specification text, with the same ALL CAPS indicator.
+
+    Note on SVCS: Options and arguments which take a list of Docker compose services expect a comma seperated list.
 
 EOF
 }
