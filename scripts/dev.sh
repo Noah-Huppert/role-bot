@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 
 # Constants
-declare -r PROG_DIR=$(dirname $(realpath "$0"))
+declare -r PROG_DIR=$(dirname $(realpath "$0")) || exit
 source "$PROG_DIR/common.sh"
 
 declare -r DEFAULT_OPT_DOCKER_COMPOSE_LOGS_SVCS="bot"
 
 declare -r ARG_ACTION_RESTART="restart"
-declare -r ARG_ACTION_NAMES=("$ARG_ACTION_RESTART")
+declare -r ARG_ACTION_SHELL="shell"
+declare -r ARG_ACTION_NAMES=("$ARG_ACTION_RESTART" "$ARG_ACTION_SHELL")
+
+declare -r ARG_ACTION_SHELL_DEFAULT_SVC="bot"
 
 # Exit codes
 # ... Options
@@ -28,12 +31,19 @@ declare -r EXIT_MSG_ARG_ACTION_RESTART_PARSE="Failed to parse service names in r
 declare -ri EXIT_CODE_ARG_ACTION_RESTART_DO=3
 declare -r EXIT_MSG_ARG_ACTION_RESTART_DO="Failed to restart services"
 
+# ... ... Shell action
+declare -ri EXIT_CODE_ARG_ACTION_SHELL_PARSE=40
+declare -r EXIT_MSG_ARG_ACTION_SHELL_PARSE="Failed to parse shell action"
+
+declare -ri EXIT_CODE_ARG_ACTION_SHELL_DO=41
+declare -r EXIT_MSG_ARG_ACTION_SHELL_DO="Failed to run shell command in Docker service"
+
 # ... Docker compose up
-declare -ri EXIT_CODE_DOCKER_COMPOSE_UP=40
+declare -ri EXIT_CODE_DOCKER_COMPOSE_UP=50
 declare -r EXIT_MSG_DOCKER_COMPOSE_UP="Failed to bring up Docker compose stack"
 
 # ... Docker compose logs
-declare -ri EXIT_CODE_DOCKER_COMPOSE_LOGS=41
+declare -ri EXIT_CODE_DOCKER_COMPOSE_LOGS=51
 declare -r EXIT_MSG_DOCKER_COMPOSE_LOGS="Failed to tail Docker compose logs"
 
 # Helpers
@@ -62,6 +72,10 @@ ACTIONS
 
         After bringing up Docker compose stack restart these services.
 
+    shell=[SVC]=CMD
+
+        After bringing up Docker compose stack, execute a command in a service's Docker container. The SVC can be omitted and will default to $ARG_ACTION_SHELL_DEFAULT_SVC.
+
 BEHAVIOR
 
     Starts the Docker development setup if not running. Then tails its log.
@@ -82,9 +96,36 @@ parse_action_name() { # ( action_spec )
 action_restart() { # ( action_spec )
   local -r action_spec="$1"
 
-  local -r svcs=$(run_check "awk -F '=' '{ print \$2 }' <<< '$action_spec'" "$EXIT_CODE_ARG_ACTION_RESTART_PARSE" "$EXIT_MSG_ARG_ACTION_RESTART_PARSE")
+  local svcs
+  svcs=$(run_check "awk -F '=' '{ print \$2 }' <<< '$action_spec'" "$EXIT_CODE_ARG_ACTION_RESTART_PARSE" "$EXIT_MSG_ARG_ACTION_RESTART_PARSE") || exit
 
   run_check "docker-compose restart $svcs" "$EXIT_CODE_ARG_ACTION_RESTART_DO" "$EXIT_MSG_ARG_ACTION_RESTART_DO"
+}
+
+# Runs a shell in Docker.
+action_shell() { # ( action_spec )
+  local -r action_spec="$1"
+
+  # Determine if the SVC was specified in the spec
+  # https://unix.stackexchange.com/a/18753
+  local -i num_equals
+  num_equals=$(run_check "awk -F '=' '{ print NF-1 }' <<< '$action_spec'" "$EXIT_CODE_ARG_ACTION_SHELL_PARSE" "$EXIT_MSG_ARG_ACTION_SHELL_PARSE") || exit
+
+  local svc="$ARG_ACTION_SHELL_DEFAULT_SVC"
+  local cmd=""
+  
+  if (($num_equals >= 2)); then
+    # Service specified
+    svc=$(run_check "awk -F '=' '{ print \$2 }' <<< '$action_spec'" "$EXIT_CODE_ARG_ACTION_SHELL_PARSE" "$EXIT_MSG_ARG_ACTION_SHELL_PARSE") || exit
+    
+    cmd=$(run_check "cut -d'=' -f 3- - <<< '$action_spec'" "$EXIT_CODE_ARG_ACTION_SHELL_PARSE" "$EXIT_MSG_ARG_ACTION_SHELL_PARSE") || exit
+  else
+    # Service not specified
+    cmd=$(run_check "cut -d'=' -f 2- - <<< '$action_spec'" "$EXIT_CODE_ARG_ACTION_SHELL_PARSE" "$EXIT_MSG_ARG_ACTION_SHELL_PARSE") || exit
+  fi
+
+  # Run action
+  run_check "docker-compose exec $svc $cmd" "$EXIT_CODE_ARG_ACTION_SHELL_DO" "$EXIT_MSG_ARG_ACTION_SHELL_DO"
 }
 
 # Options
@@ -111,7 +152,7 @@ while [[ -n "$1" ]]; do
   action_arg="$1"
   shift
   
-  action_name=$(parse_action_name "$action_arg")
+  action_name=$(parse_action_name "$action_arg") || exit
 
   # Check if action is a valid action
   action_valid=""
@@ -137,10 +178,11 @@ run_check "docker-compose up -d" "$EXIT_CODE_DOCKER_COMPOSE_UP" "$EXIT_MSG_DOCKE
 
 # Run post-up actions
 for action in "${ARG_ACTIONS[@]}"; do
-  action_name=$(parse_action_name "$action")
-  
+  action_name=$(parse_action_name "$action") || exit
+
   case "$action_name" in
     "$ARG_ACTION_RESTART") action_restart "$action" ;;
+    "$ARG_ACTION_SHELL") action_shell "$action" ;;
   esac
 done
 
