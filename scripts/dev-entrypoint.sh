@@ -63,4 +63,4 @@ fi
 
 # Run Bot server
 log "Running development server in watch mode"
-run_check "yarn watch" "$EXIT_CODE_RUN_DEV" "$EXIT_MSG_RUN_DEV"
+run_check "yarn dev-watch" "$EXIT_CODE_RUN_DEV" "$EXIT_MSG_RUN_DEV"
