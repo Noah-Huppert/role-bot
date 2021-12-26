@@ -43,8 +43,14 @@ declare -r EXIT_MSG_ARG_ACTION_SHELL_PARSE_SVC="Failed to parse SVC argument fro
 declare -ri EXIT_CODE_ARG_ACTION_SHELL_PARSE_CMD=42
 declare -r EXIT_MSG_ARG_ACTION_SHELL_PARSE_CMD="Failed to parse CMD argument from shell action specification"
 
-declare -ri EXIT_CODE_ARG_ACTION_SHELL_DO=41
-declare -r EXIT_MSG_ARG_ACTION_SHELL_DO="Failed to run shell command in Docker service"
+declare -ri EXIT_CODE_ARG_ACTION_SHELL_PS=43
+declare -r EXIT_MSG_ARG_ACTION_SHELL_PS="Failed to get status of Docker compose service in which to run shell command"
+
+declare -ri EXIT_CODE_ARG_ACTION_SHELL_EXEC=44
+declare -r EXIT_MSG_ARG_ACTION_SHELL_EXEC="Failed to run shell command in Docker service"
+
+declare -ri EXIT_CODE_ARG_ACTION_SHELL_RUN=44
+declare -r EXIT_MSG_ARG_ACTION_SHELL_RUN="Failed to run shell command in a temporary run container for a Docker service"
 
 # ... Docker compose up
 declare -ri EXIT_CODE_DOCKER_COMPOSE_UP=50
@@ -85,6 +91,7 @@ ACTIONS
     shell[=SVC]=[CMD]
 
         After bringing up Docker compose stack, execute a command in a service's Docker container.
+        If the service is not running a temporary run container will be made.
 
         SVC    Docker compose service in which to run (Default: '$ARG_ACTION_SHELL_DEFAULT_SVC').
         CMD    The command to run (Default: '$ARG_ACTION_SHELL_DEFAULT_CMD')
@@ -141,9 +148,19 @@ action_shell() { # ( action_spec )
   if [[ -z "$cmd" ]]; then
     cmd="$ARG_ACTION_SHELL_DEFAULT_CMD"
   fi
-  
+
+  # Check if service is running
+  svc_ps_out=$(run_check "docker-compose ps '$svc'" "$EXIT_CODE_ARG_ACTION_SHELL_PS" "$EXIT_MSG_ARG_ACTION_SHELL_PS") || exit
+
   # Run action
-  run_check "docker-compose exec $svc $cmd" "$EXIT_CODE_ARG_ACTION_SHELL_DO" "$EXIT_MSG_ARG_ACTION_SHELL_DO"
+  if [[ "$svc_ps_out" =~ "Up" ]]; then
+    # Service is running
+    run_check "docker-compose exec $svc $cmd" "$EXIT_CODE_ARG_ACTION_SHELL_EXEC" "$EXIT_MSG_ARG_ACTION_SHELL_EXEC"
+  else
+    # Service is not running, create temporary execution container
+    log "For shell '$svc' '$cmd' the Docker compose service was not running, created a temporary execution container"
+    run_check "docker-compose run $svc $cmd" "$EXIT_CODE_ARG_ACTION_SHELL_RUN" "$EXIT_MSG_ARG_ACTION_SHELL_RUN"
+  fi
 }
 
 # Options
