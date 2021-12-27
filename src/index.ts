@@ -15,7 +15,12 @@ async function main() {
     config: cfg.discord,
     roleManager: {
       listRoles: async (): Promise<Role[]> => {
-        return [];
+        return [
+          {
+            name: "role",
+            description: "role role",
+          }
+        ];
       },
     },
   });

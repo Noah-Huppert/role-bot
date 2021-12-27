@@ -5,6 +5,8 @@ import {
   Client as DiscordClient,
   Intents as DiscordIntents,
   CommandInteraction,
+  MessageSelectMenu,
+  MessageActionRow,
 } from "discord.js";
 
 import { RoleManager } from "../ports";
@@ -13,6 +15,11 @@ import { RoleManager } from "../ports";
  * Name of role management Discord command.
  */
 const DISCORD_COMMAND_ROLES = "roles";
+
+/**
+ * ID of role command select menu.
+ */
+const DISCORD_COMMAND_ROLES_SELECT_ID = "roles/select/roles";
 
 /**
  * Discord API configuration for behavior and authentication.
@@ -86,7 +93,7 @@ export class DiscordAdapter {
     const discordClient = new DiscordClient({ intents: [ DiscordIntents.FLAGS.GUILDS ] });
 
     // Wait for Discord client to be ready
-    discordClient.on("interaction", async (interaction) => {
+    discordClient.on("interactionCreate", async (interaction) => {
       if (interaction.isCommand()) {
         switch (interaction.commandName) {
           case DISCORD_COMMAND_ROLES:
@@ -104,7 +111,29 @@ export class DiscordAdapter {
    * @param commandInteraction - The role command interaction.
    */
   async onRoleCommand(commandInteraction: CommandInteraction): Promise<void> {
-    console.log("on role command");
-    this.roleManager.listRoles();
+    console.log("On role command");
+
+    // Get roles
+    const roles = await this.roleManager.listRoles();
+
+    // Reply
+    await commandInteraction.reply({
+      content: "Manage roles",
+      components: [
+        new MessageActionRow({
+          components: [
+            new MessageSelectMenu({
+              customId: DISCORD_COMMAND_ROLES_SELECT_ID,
+              options: roles.map((role) => {
+                return {
+                  label: role.name,
+                  description: role.description,
+                  value: role.name,
+                };
+              }),
+            }),
+          ],
+        })
+      ]});
   }
 }
