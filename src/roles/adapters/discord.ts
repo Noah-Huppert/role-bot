@@ -7,7 +7,7 @@ import {
   CommandInteraction,
 } from "discord.js";
 
-import { RoleManager } from "../ports/for-managing-roles";
+import { RoleManager } from "../ports";
 
 /**
  * Name of role management Discord command.
@@ -26,12 +26,18 @@ export interface DiscordConfig {
   /**
    * Discord API authentication token.
    */
-  authToken: string;
+  apiToken: string;
 
   /**
    * Discord IDs of servers (aka guilds) which the bot should act within.
+   * Keys are nicknames of the servers. Values are the guild IDs.
    */
-  guildIDs: string[];
+  guildIDs: { [key: string]: string };
+
+  /**
+   * The Discord ID of the server which will own custom emojis.
+   */
+  emojiGuildID: string;
 }
 
 export class DiscordAdapter {
@@ -50,10 +56,10 @@ export class DiscordAdapter {
    */
   constructor({
     config,
-    forManagingPorts,
+    roleManager,
   }: {
     config: DiscordConfig,
-    forManagingPorts: RoleManager;
+    roleManager: RoleManager;
   }) {
     this.config = config;
     this.roleManager = roleManager;
@@ -70,9 +76,9 @@ export class DiscordAdapter {
     ];
     const cmdsJSON = cmds.map((cmd) => cmd.toJSON());
 
-    const discordREST = new DiscordREST({ version: "9" }).setToken(this.config.authToken);
+    const discordREST = new DiscordREST({ version: "9" }).setToken(this.config.apiToken);
 
-    await Promise.all(this.config.guildIDs.map((guildID) => {
+    await Promise.all(Object.values(this.config.guildIDs).map((guildID) => {
       await discordREST.put(DiscordRESTRoutes.applicationGuildCommands(this.config.clientID, guildID), { body: cmdsJSON });
     }));
 
