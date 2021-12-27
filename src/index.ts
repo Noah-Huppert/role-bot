@@ -1,6 +1,6 @@
 import { Config } from "./config";
-import { DiscordAdapter } from "./roles/adapters/discord";
-import { Role, RoleManager } from "./roles/ports";
+import { DiscordAdapter } from "./adapters/discord";
+import { Role, RoleManager } from "./ports/roles";
 import { wait } from "./utils/wait";
 
 /**

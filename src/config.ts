@@ -1,4 +1,4 @@
-import { DiscordConfig } from "./roles/adapters/discord";
+import { DiscordConfig } from "./adapters/discord";
 
 /**
  * Convert a list of [key, value] tuples to an object.

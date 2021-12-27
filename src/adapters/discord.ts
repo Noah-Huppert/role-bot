@@ -9,7 +9,7 @@ import {
   MessageActionRow,
 } from "discord.js";
 
-import { RoleManager } from "../ports";
+import { RoleManager } from "../ports/roles";
 
 /**
  * Name of role management Discord command.
