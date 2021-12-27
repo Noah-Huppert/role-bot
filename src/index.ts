@@ -7,10 +7,10 @@ import { Role, RoleManager } from "./roles/ports";
  */
 async function main() {
   const cfg = new Config();
-  const discordAdapater = new DiscordAdapter({
+  const discordAdapter = new DiscordAdapter({
     config: cfg.discord,
     roleManager: {
-      listRoles: () => Promise<Role[]> {
+      listRoles: async (): Promise<Role[]> => {
         return [];
       },
     },

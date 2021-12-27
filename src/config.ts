@@ -1,6 +1,18 @@
 import { DiscordConfig } from "./roles/adapters/discord";
 
 /**
+ * Convert a list of [key, value] tuples to an object.
+ */
+function strObjFromTuples(tuples: [string, string][]): { [key: string]: string } {
+  let obj: { [key: string]: string } = {};
+  for (const t of tuples) {
+    obj[t[0]] = t[1];
+  }
+
+  return obj;
+}
+
+/**
  * Ensure an environment variable has a value. Optionally use default value.
  * @throws Error
  * Thrown if the environment variable was not defined.
@@ -56,7 +68,7 @@ export class Config {
       clientID: unwrapEnv("ROLE_BOT_DISCORD_CLIENT_ID"),
       apiToken: unwrapEnv("ROLE_BOT_DISCORD_API_TOKEN"),
       guildIDs: strObjFromTuples(unwrapEnv("ROLE_BOT_DISCORD_GUILD_IDS").split(",").map(parseEnvKV)),
-      emojiGuild: unwrapEnv("ROLE_BOT_DISCORD_EMOJI_GUILD"),
+      emojiGuildID: unwrapEnv("ROLE_BOT_DISCORD_EMOJI_GUILD_ID"),
     };
   }
 }

@@ -7,17 +7,22 @@ source "$PROG_DIR/common.sh"
 declare -r DEPS_LOCK_PATH=$(realpath "$PROG_DIR/../yarn.lock")
 declare -r DEPS_PATH=$(realpath "$PROG_DIR/../node_modules")
 
+declare -r ENV_FILE="$PROG_DIR/.env"
+
 # Exit statuses
 declare -ri EXIT_CODE_OPT_UNKNOWN=10
 declare -r EXIT_MSG_OPT_UNKNOWN="Unknown option"
 
-declare -ri EXIT_CODE_DEPS_INSTALL=11
+declare -ri EXIT_CODE_DEPS_INSTALL=20
 declare -r EXIT_MSG_DEPS_INSTALL="Failed to install dependencies"
 
-declare -ri EXIT_CODE_DEPS_TOUCH=12
+declare -ri EXIT_CODE_DEPS_TOUCH=21
 declare -r EXIT_MSG_DEPS_TOUCH="Failed to update last modified date of dependencies path"
 
-declare -ri EXIT_CODE_RUN_DEV=13
+declare -ri EXIT_CODE_SOURCE_ENV=30
+declare -ri EXIT_MSG_SOURCE_ENV="Failed to source .env file"
+
+declare -ri EXIT_CODE_RUN_DEV=40
 declare -r EXIT_MSG_RUN_DEV="Failed to run development mode"
 
 # Helpers
@@ -59,6 +64,11 @@ if [[ ! -d "$DEPS_PATH" ]] || check_file_newer "$DEPS_LOCK_PATH" "$DEPS_PATH"; t
   run_check "touch $DEPS_PATH" "$EXIT_CODE_DEPS_TOUCH" "$EXIT_MSG_DEPS_TOUCH"
 
   log "Dependencies updated"
+fi
+
+# Source env file if it exists
+if [[ -f "$ENV_FILE" ]]; then
+  run_check "source '$ENV_FILE'" "$EXIT_CODE_SOURCE_ENV" "$EXIT_MSG_SOURCE_ENV"
 fi
 
 # Run Bot server

@@ -1,9 +1,9 @@
 import { SlashCommandBuilder } from "@discordjs/builders";
-import { DiscordRESTRoutes } from "discord-api-types/v9";
+import { Routes as DiscordRESTRoutes } from "discord-api-types/v9";
 import { REST as DiscordREST } from "@discordjs/rest";
 import {
-  DiscordAPI,
-  DiscordIntents,
+  Client as DiscordClient,
+  Intents as DiscordIntents,
   CommandInteraction,
 } from "discord.js";
 
@@ -78,7 +78,7 @@ export class DiscordAdapter {
 
     const discordREST = new DiscordREST({ version: "9" }).setToken(this.config.apiToken);
 
-    await Promise.all(Object.values(this.config.guildIDs).map((guildID) => {
+    await Promise.all(Object.values(this.config.guildIDs).map(async (guildID) => {
       await discordREST.put(DiscordRESTRoutes.applicationGuildCommands(this.config.clientID, guildID), { body: cmdsJSON });
     }));
 
