@@ -66,10 +66,9 @@ export class DiscordAdapter {
   }
   
   /**
-   * Runs the entrypoint to the Discord logic. 
-   * This sets up a Discord API client listen for Discord interaction events.
+   * Sets up a Discord API client listen for Discord interaction events.
    */
-  async main(): Promise<void> {
+  async setup(): Promise<void> {
     // Set the commands to display in Discord
     const cmds = [
       new SlashCommandBuilder().setName(DISCORD_COMMAND_ROLES).setDescription("Manage roles"),
@@ -79,6 +78,7 @@ export class DiscordAdapter {
     const discordREST = new DiscordREST({ version: "9" }).setToken(this.config.apiToken);
 
     await Promise.all(Object.values(this.config.guildIDs).map(async (guildID) => {
+      console.log(`Setup Discord commands for ${guildID}`);
       await discordREST.put(DiscordRESTRoutes.applicationGuildCommands(this.config.clientID, guildID), { body: cmdsJSON });
     }));
 
@@ -86,7 +86,7 @@ export class DiscordAdapter {
     const discordClient = new DiscordClient({ intents: [ DiscordIntents.FLAGS.GUILDS ] });
 
     // Wait for Discord client to be ready
-    discordClient.once("interaction", async (interaction) => {
+    discordClient.on("interaction", async (interaction) => {
       if (interaction.isCommand()) {
         switch (interaction.commandName) {
           case DISCORD_COMMAND_ROLES:
@@ -95,6 +95,8 @@ export class DiscordAdapter {
         }
       }
     });
+
+    discordClient.login(this.config.apiToken);
   }
 
   /**
