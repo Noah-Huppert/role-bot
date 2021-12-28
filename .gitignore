@@ -1,4 +1,9 @@
-dist/
+# Build output
+build/
+
+# NodeJS
 *.log
 node_modules/
+
+# Application specific configuration file
 .env
