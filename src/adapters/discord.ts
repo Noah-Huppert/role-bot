@@ -90,50 +90,50 @@ export class DiscordAdapter {
     }));
 
     // Setup handler for commands
-    const discordClient = new DiscordClient({ intents: [ DiscordIntents.FLAGS.GUILDS ] });
+    // const discordClient = new DiscordClient({ intents: [ DiscordIntents.FLAGS.GUILDS ] });
 
-    // Wait for Discord client to be ready
-    discordClient.on("interactionCreate", async (interaction) => {
-      if (interaction.isCommand()) {
-        switch (interaction.commandName) {
-          case DISCORD_COMMAND_ROLES:
-            await this.onRoleCommand(interaction);
-            break;
-        }
-      }
-    });
+  //   // Wait for Discord client to be ready
+  //   discordClient.on("interactionCreate", async (interaction) => {
+  //     if (interaction.isCommand()) {
+  //       switch (interaction.commandName) {
+  //         case DISCORD_COMMAND_ROLES:
+  //           await this.onRoleCommand(interaction);
+  //           break;
+  //       }
+  //     }
+  //   });
 
-    discordClient.login(this.config.apiToken);
-  }
+  //   discordClient.login(this.config.apiToken);
+  // }
 
-  /**
-   * Adapter for the Discord role command interaction being received.
-   * @param commandInteraction - The role command interaction.
-   */
-  async onRoleCommand(commandInteraction: CommandInteraction): Promise<void> {
-    console.log("On role command");
+  // /**
+  //  * Adapter for the Discord role command interaction being received.
+  //  * @param commandInteraction - The role command interaction.
+  //  */
+  // async onRoleCommand(commandInteraction: CommandInteraction): Promise<void> {
+  //   console.log("On role command");
 
-    // Get roles
-    const roles = await this.roleManager.listRoles();
+  //   // Get roles
+  //   const roles = await this.roleManager.listRoles();
 
-    // Reply
-    await commandInteraction.reply({
-      content: "Manage roles",
-      components: [
-        new MessageActionRow({
-          components: [
-            new MessageSelectMenu({
-              customId: DISCORD_COMMAND_ROLES_SELECT_ID,
-              options: roles.map((role) => {
-                return {
-                  label: role.name,
-                  description: role.description,
-                  value: role.name,
-                };
-              }),
-            }),
-          ],
-        })
-      ]});
+  //   // Reply
+  //   await commandInteraction.reply({
+  //     content: "Manage roles",
+  //     components: [
+  //       new MessageActionRow({
+  //         components: [
+  //           new MessageSelectMenu({
+  //             customId: DISCORD_COMMAND_ROLES_SELECT_ID,
+  //             options: roles.map((role) => {
+  //               return {
+  //                 label: role.name,
+  //                 description: role.description,
+  //                 value: role.name,
+  //               };
+  //             }),
+  //           }),
+  //         ],
+  //       })
+  //     ]});
   }
 }

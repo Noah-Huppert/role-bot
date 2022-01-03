@@ -14,26 +14,39 @@ const EXIT_MSG_BUILD_FAIL = "ESBuild failed to build the source code";
 const SRC_DIR = path.join(__dirname, "../src");
 const BUILD_OUT_DIR = path.join(__dirname, "../build");
 
-const ENTRYPOINTS = [ path.join(SRC_DIR, "index.ts") ];
+const ENTRYPOINTS = [ path.join(__dirname, "../src/index.ts") ];
 const OUTFILE = path.join(BUILD_OUT_DIR, "index.js");
 
 /**
+ * ESBuild plugin which redirectd "~/" -> "./src/".
+ * Arguments:
+ * - srcDir (String) - The directory to which "~/" will point.
+ */
+const TILDE_IMPORT_PLUGIN = {
+  name: "tilde-import",
+  setup(build) {
+    // Redirect all paths starting with "~/" to "./src/"
+    build.onResolve({ filter: /^~\// }, (args) => {
+      return {
+        path: path.join(SRC_DIR, args.path.replace(/(~\/)(.*)/, "$2")) + path.extname(args.importer),
+      };
+    });
+  },
+}
+
+/**
  * Build the project.
- * @param watch - If true then watch for source code changes and rebuild.
  * @returns Promise which resolves when the build is complete, or rejects if there is an error.
  */
 async function build(watch) {
-  
   await esbuild.build({
     entryPoints: ENTRYPOINTS,
-    watch: watch,
     bundle: true,
     platform: "node",
+    target: "node16",
     outfile: OUTFILE,
     plugins: [
-      alias({
-        "~": SRC_DIR,
-      }),
+      TILDE_IMPORT_PLUGIN,
     ],
   });
 }
@@ -43,13 +56,10 @@ let argv = process.argv.slice(2);
 
 let watch = false;
 
-for (let arg in argv) {
+for (let arg of argv) {
   switch (arg) {
-  case "--watch":
-    watch = true;
-    break;
   default:
-    console.error(`${EXIT_MSG_UNKNOWN_OPT}: ${opt}`);
+    console.error(`${EXIT_MSG_UNKNOWN_OPT}: ${arg}`);
     process.exit(EXIT_CODE_UNKNOWN_OPT);
     break;
   }
@@ -58,9 +68,8 @@ for (let arg in argv) {
 
 // Execute build function
 build(watch).then(() => {
-  console.log("Build success");
-}).catch(() => {
-  // Error already printed to console by ESBuild
-  console.error(EXIT_MSG_BUILD_FAIL);
+  console.log(`Build success: ${OUTFILE}`);
+}).catch((e) => {
+  console.error(`${EXIT_MSG_BUILD_FAIL}: ${e}`);
   process.exit(EXIT_CODE_BUILD_FAIL);
 });
