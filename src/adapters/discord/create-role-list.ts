@@ -1,7 +1,15 @@
-import { CommandInteraction } from "discord.js";
+import {
+  CommandInteraction,
+  SelectMenuInteraction,
+  MessageSelectMenu,
+  MessageActionRow,
+} from "discord.js";
 
 import { RoleManager } from "../../ports/roles";
-import { CommandMeta } from "./index";
+import {
+  CommandMeta,
+  SelectMeta,
+} from "./index";
 
 /**
  * @param interaction - The command interaction.
@@ -25,13 +33,13 @@ export class CreateRoleListHandler {
   }
 
   /**
-   * Provides metadata about the Discord command this handler pertains.
+   * @returns Instructions on how to handle the create role list command.
    */
-  getMeta(): CommandMeta {
+  getCommandMeta(): CommandMeta {
     return {
-      name: "create-role-list",
+      name: "create-role-lists",
       description: "Create a new list of roles from which users can self assign",
-      onCommand: this.onCommand,
+      onCommand: (i) => this.onCommand(i),
     };
   }
 
@@ -39,29 +47,28 @@ export class CreateRoleListHandler {
    * Create a new role list.
    */
   async onCommand(interaction: CommandInteraction): Promise<void> {
-    console.log("On role command");
-
     // Get roles
     const roles = await this.roleManager.listRoles();
 
     // Reply
+    // TODO: Reply with a form for creating a list
     await interaction.reply({
       content: "Manage roles",
       components: [
-        // new MessageActionRow({
-        //   components: [
-        //     new MessageSelectMenu({
-        //       customId: DISCORD_COMMAND_ROLES_SELECT_ID,
-        //       options: roles.map((role) => {
-        //         return {
-        //           label: role.name,
-        //           description: role.description,
-        //           value: role.name,
-        //         };
-        //       }),
-        //     }),
-        //   ],
-        // })
+        new MessageActionRow({
+          components: [
+            new MessageSelectMenu({
+              customId: DISCORD_COMMAND_ROLES_SELECT_ID,
+              options: roles.map((role) => {
+                return {
+                  label: role.name,
+                  description: role.description,
+                  value: role.name,
+                };
+              }),
+            }),
+          ],
+        })
       ]});
   }
 }

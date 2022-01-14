@@ -9,7 +9,7 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "ts-node --project ./tsconfig.json ./src/index.ts",
+    "dev": "tsc --build ./tsconfig.json && node --enable-source-maps ./dist/index.js",
     "watch-dev": "nodemon",
     "test": "jest"
   },

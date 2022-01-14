@@ -1,7 +1,7 @@
 /**
  * A role to be managed by the bot.
  */
-export type Role {
+export type Role = {
   /**
    * Name of role.
    */
@@ -20,5 +20,5 @@ export interface RoleManager {
   /**
    * Provide a list of all the roles which exist within the system.
    */
-  async listRoles(): Promise<Role[]>;
+  listRoles(): Promise<Role[]>;
 }

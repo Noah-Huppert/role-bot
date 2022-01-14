@@ -1,6 +1,5 @@
 {
-  "ignore": [ "node_modules" ],
-  "watch": [ "src" ],
+  "watch": [ "src", "package.json", "tsconfig.json", "nodemon.json" ],
   "exec": "yarn dev",
   "ext": "ts"
 }

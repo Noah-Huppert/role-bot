@@ -27,7 +27,7 @@ async function main() {
 
   await discordAdapter.setup();
 
-  console.log("Setup Discord");
+  console.log("Discord adapter ready");
 
   // Wait for control sign to exit
   let shouldExit = false;
@@ -37,7 +37,7 @@ async function main() {
   });
 
   while (!shouldExit) {
-    await wait(1000);
+    await wait(100);
   }
 }
 
