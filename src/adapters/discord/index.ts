@@ -9,17 +9,36 @@ import {
   MessageActionRow,
 } from "discord.js";
 
-import { RoleManager } from "../ports/roles";
+import { RoleManager } from "../../ports/roles";
+
+import { CreateRoleListHandler } from "./create-role-list";
 
 /**
- * Name of role management Discord command.
+ * Describes a Discord interaction command.
  */
-const DISCORD_COMMAND_ROLES = "roles";
+export interface CommandMeta {
+  /**
+   * String user types to invoke command.
+   */
+  name: string;
+
+  /**
+   * User friendly short description of command.
+   */
+  description: string;
+
+  /**
+   * Function which will process a Discord API interaction when it is created.
+   */
+  onCommand: (cmd: CommandInteraction) => Promise<void>;
+}
 
 /**
- * ID of role command select menu.
+ * Is able to provide metadata about an command.
  */
-const DISCORD_COMMAND_ROLES_SELECT_ID = "roles/select/roles";
+interface MetaDescriber {
+  getMeta(): CommandMeta;
+}
 
 /**
  * Discord API configuration for behavior and authentication.
@@ -60,6 +79,8 @@ export class DiscordAdapter {
 
   /**
    * Creates a DiscordAdapter.
+   * @param config - Discord configuration.
+   * @param roleManager - The role manager used by adapter.
    */
   constructor({
     config,
@@ -71,16 +92,29 @@ export class DiscordAdapter {
     this.config = config;
     this.roleManager = roleManager;
   }
+
+  /**
+   * Discord interaction commands to which Discord adapater will respond.
+   */
+  getCommands(): CommandMeta[] {
+    const describers = [
+      new CreateRoleListHandler({
+        roleManager: this.roleManager,
+      }),
+    ];
+
+    return describers.map((d) => d.getMeta());
+  }
   
   /**
    * Sets up a Discord API client listen for Discord interaction events.
    */
   async setup(): Promise<void> {
     // Set the commands to display in Discord
-    const cmds = [
-      new SlashCommandBuilder().setName(DISCORD_COMMAND_ROLES).setDescription("Manage roles"),
-    ];
-    const cmdsJSON = cmds.map((cmd) => cmd.toJSON());
+    const cmds = this.getCommands();
+
+    const slashCmds = cmds.map((cmd) => new SlashCommandBuilder().setName(cmd.name).setDescription(cmd.description));
+    const cmdsJSON = slashCmds.map((cmd) => cmd.toJSON());
 
     const discordREST = new DiscordREST({ version: "9" }).setToken(this.config.apiToken);
 
@@ -95,45 +129,23 @@ export class DiscordAdapter {
     // Wait for Discord client to be ready
     discordClient.on("interactionCreate", async (interaction) => {
       if (interaction.isCommand()) {
-        switch (interaction.commandName) {
-          case DISCORD_COMMAND_ROLES:
-            await this.onRoleCommand(interaction);
-            break;
+        const matchedCmds = cmds.filter((cmd) => interaction.commandName == cmd.name);
+
+        if (matchedCmds.length == 0) {
+          // Not handling this command
+          return;
         }
+
+        if (matchedCmds.length > 1) {
+          // Duplicate command names
+          throw new Error(`Multiple CommandMeta objects matched the Discord interaction "${interaction.commandName}"`);
+        }
+
+        // Run command handler
+        matchedCmds[0].onCommand(interaction);
       }
     });
 
     discordClient.login(this.config.apiToken);
-  }
-
-  /**
-   * Adapter for the Discord role command interaction being received.
-   * @param commandInteraction - The role command interaction.
-   */
-  async onRoleCommand(commandInteraction: CommandInteraction): Promise<void> {
-    console.log("On role command");
-
-    // Get roles
-    const roles = await this.roleManager.listRoles();
-
-    // Reply
-    await commandInteraction.reply({
-      content: "Manage roles",
-      components: [
-        new MessageActionRow({
-          components: [
-            new MessageSelectMenu({
-              customId: DISCORD_COMMAND_ROLES_SELECT_ID,
-              options: roles.map((role) => {
-                return {
-                  label: role.name,
-                  description: role.description,
-                  value: role.name,
-                };
-              }),
-            }),
-          ],
-        })
-      ]});
   }
 }
