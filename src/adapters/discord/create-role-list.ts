@@ -7,68 +7,86 @@ import {
 
 import { RoleManager } from "../../ports/roles";
 import {
-  CommandMeta,
-  SelectMeta,
+  InteractionDescription,
+  newCommandDescription,
+  newSelectMenuDescription,
 } from "./index";
 
 /**
- * @param interaction - The command interaction.
+ * Dependencies used by the create role list command logic.
  */
-export class CreateRoleListHandler {
+type CreateRoleListOpts = {
+  /**
+   * The role manager port used by the handler.
+   */
+  roleManager: RoleManager;
+};
+  
+
+/**
+ * Describes a create role list command interaction.
+ */
+export class CreateRoleListDescriber {
   /**
    * The role manager port used by the handler.
    */
   roleManager: RoleManager;
 
   /**
-   * Create a new handler.
-   * @param roleManager - The role manager used by the handler.
+   * Initialize the describer.
+   * @param opts - Dependencies used by handler logic.
    */
-  constructor({
-    roleManager,
-  }: {
-    roleManager: RoleManager,
-  }) {
-    this.roleManager = roleManager;
+  constructor(opts: CreateRoleListOpts) {
+    this.roleManager = opts.roleManager;
   }
-
+  
   /**
    * @returns Instructions on how to handle the create role list command.
    */
-  getCommandMeta(): CommandMeta {
-    return {
-      name: "create-role-lists",
-      description: "Create a new list of roles from which users can self assign",
-      onCommand: (i) => this.onCommand(i),
-    };
-  }
+  getInteractionDescriptions(): InteractionDescription[] {
+    return [
+      newCommandDescription({
+        name: "create-role-lists",
+        description: "Create a new list of roles from which users can self assign",
+        factory: () => {
+          return {
+            onCommand: async (cmd: CommandInteraction): Promise<void> => {
+              // Get roles
+              const roles = await this.roleManager.listRoles();
 
-  /**
-   * Create a new role list.
-   */
-  async onCommand(interaction: CommandInteraction): Promise<void> {
-    // Get roles
-    const roles = await this.roleManager.listRoles();
-
-    // Reply
-    // TODO: Reply with a form for creating a list
-    await interaction.reply({
-      content: "Manage roles",
-      components: [
-        new MessageActionRow({
-          components: [
-            new MessageSelectMenu({
-              customId: DISCORD_COMMAND_ROLES_SELECT_ID,
-              options: roles.map((role) => {
-                return {
-                  label: role.name,
-                  description: role.description,
-                  value: role.name,
-                };
-              }),
-            }),
-          ],
-        })
-      ]});
+              // Reply
+              await cmd.reply({
+                content: "Manage roles",
+                components: [
+                  new MessageActionRow({
+                    components: [
+                      new MessageSelectMenu({
+                        customId: "create-role-list:select_role",
+                        options: roles.map((role) => {
+                          return {
+                            label: role.name,
+                            description: role.description,
+                            value: role.name,
+                          };
+                        }),
+                      }),
+                    ],
+                  })
+                ]});
+            },
+          };
+        },
+      }),
+      newSelectMenuDescription({
+          customID: "create-role-list:select_role",
+          factory: () => {
+            return {
+              onSelectMenu: async (selectMenu: SelectMenuInteraction): Promise<void> => {
+                console.log("select", selectMenu);
+              },
+            };
+          },
+      }),
+    ];
   }
 }
