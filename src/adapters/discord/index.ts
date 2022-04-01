@@ -1,4 +1,7 @@
-import { SlashCommandBuilder } from "@discordjs/builders";
+import {
+  SlashCommandBuilder,
+  SlashCommandStringOption,
+} from "@discordjs/builders";
 import { Routes as DiscordRESTRoutes } from "discord-api-types/v9";
 import { REST as DiscordREST } from "@discordjs/rest";
 import {
@@ -9,7 +12,7 @@ import {
   ButtonInteraction,
 } from "discord.js";
 
-import { RoleManager } from "../../ports/roles";
+import { RoleManager } from "../../roles";
 
 import { CreateRoleListDescriber } from "./create-role-list";
 
@@ -38,10 +41,50 @@ type CommandDescriptionSpec = {
   description: string;
 
   /**
+   */
+  arguments?: CommandDescriptionArgument[],
+
+  /**
    * Factory method to create a CommandHandler.
    */
   factory(): CommandHandler;
 }
+
+/**
+ * A type of argument used in a command description.
+ */
+type CommandDescriptionArgument = CommandDescriptionStringArgument;
+
+/**
+ * A command string argument.
+ */
+type CommandDescriptionStringArgument = {
+  /**
+   * Indicates the type of the argument.
+   */
+  type: "string";
+} & CommandDescriptionStringArgumentSpec;
+
+
+/**
+ * {@link CommandDescriptionStringArgument}
+ */
+type CommandDescriptionStringArgumentSpec = {
+  /**
+   * True if the argument must be provided.
+   */
+  required: boolean;
+
+  /**
+   * The name of the argument.
+   */
+  name: string;
+
+  /**
+   * Description of the argument.
+   */
+  description: string;
+};
 
 /**
  * Describes a Discord interaction command and provides logic for its handling.
@@ -69,7 +112,26 @@ export function newCommandDescription(spec: CommandDescriptionSpec): CommandDesc
  * Checks if a InteractionDescription is of type CommandDescription.
  */
 export function isCommandDescription(desc: InteractionDescription): desc is CommandDescription {
-  return desc.type == "command";
+  return desc.type === "command";
+}
+
+/**
+ * Create a new CommandDescriptionStringArgument.
+ * @param spec - Data fields of a CommandDescriptionStringArgument.
+ * @returns Command description argument string fields provided with a type tag added.
+ */
+export function newCommandDescriptionStringArgument(spec: CommandDescriptionStringArgumentSpec): CommandDescriptionStringArgument {
+  return {
+    type: "string",
+    ...spec,
+  };
+}
+
+/**
+ * Checks if CommandDescriptionArgument is a CommandDescriptionStringArgument.
+ */
+export function isCommandDescriptionStringArgument(arg: CommandDescriptionArgument): arg is CommandDescriptionStringArgument {
+  return arg.type === "string";
 }
 
 /**
@@ -289,7 +351,28 @@ export class DiscordAdapter {
     buttonDescs.forEach((desc) => buttonDescsByCustomID[desc.customID] = desc);
 
     // Set the commands to display in Discord
-    const slashCmds = cmdDescs.map((cmd) => new SlashCommandBuilder().setName(cmd.name).setDescription(cmd.description));
+    const slashCmds = cmdDescs.map((cmd) => {
+      const builder = new SlashCommandBuilder();
+      
+      builder.setName(cmd.name);
+      builder.setDescription(cmd.description);
+
+      if (cmd.arguments !== undefined) {
+        cmd.arguments.forEach((arg) => {
+          if (isCommandDescriptionStringArgument(arg)) {
+            const argBuilder = new SlashCommandStringOption();
+            argBuilder.setName(arg.name);
+            argBuilder.setDescription(arg.description);
+            argBuilder.setRequired(arg.required)
+
+            builder.addStringOption(argBuilder)
+            ;
+          }
+        });
+      }
+
+      return builder;
+    });
     const cmdsJSON = slashCmds.map((cmd) => cmd.toJSON());
 
     const discordREST = new DiscordREST({ version: "9" }).setToken(this.config.apiToken);

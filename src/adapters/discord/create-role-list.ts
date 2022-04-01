@@ -5,11 +5,13 @@ import {
   MessageActionRow,
 } from "discord.js";
 
-import { RoleManager } from "../../ports/roles";
+import { RoleManager } from "../../roles";
 import {
   InteractionDescription,
   newCommandDescription,
+  newCommandDescriptionStringArgument,
 } from "./index";
+import { COLORS } from "./colors";
 
 /**
  * Dependencies used by the create role list command logic.
@@ -47,6 +49,18 @@ export class CreateRoleListDescriber {
       newCommandDescription({
         name: "create-role-lists",
         description: "Create a new list of roles from which users can self assign",
+        arguments: [
+          newCommandDescriptionStringArgument({
+            name: "name",
+            description: "The name of the new role",
+            required: true,
+          }),
+          newCommandDescriptionStringArgument({
+            name: "description",
+            description: "The description of the new role",
+            required: true,
+          }),
+        ],
         factory: () => new CreateRoleListHandler(this.opts),
       }),
     ];
@@ -67,27 +81,49 @@ class CreateRoleListHandler {
   }
 
   async onCommand(cmd: CommandInteraction): Promise<void> {
-    // Get roles
-    const roles = await this.opts.roleManager.listRoles();
+    const name = cmd.options.getString("name", true);
+    const description = cmd.options.getString("description", true);
 
-    // Reply
-    await cmd.reply({
-      content: "Manage roles",
-      components: [
-        new MessageActionRow({
-          components: [
-            new MessageSelectMenu({
-              customId: "create-role-list:select_role",
-              options: roles.map((role) => {
-                return {
-                  label: role.name,
-                  description: role.description,
-                  value: role.name,
-                };
-              }),
-            }),
-          ],
-        })
-      ]});
+    const res = await this.opts.roleManager.createRole({
+      id: "",
+      name,
+      description,
+    });
+    if (res.ok) {
+      const { roleDesc } = res.val;
+
+      await cmd.reply({
+        embeds: [
+          {
+            title: "New Role List Created",
+            color: COLORS.success,
+            fields: [
+              {
+                name:"Name",
+                value: roleDesc.name,
+                inline: true,
+              },
+              {
+                name: "Description",
+                value: roleDesc.tagline,
+                inline: true,
+              }
+            ],
+          }
+        ]
+      });
+    } else {
+      const { error } = res.val;
+      
+      await cmd.reply({
+        embeds: [
+          {
+            title: "Failed to Create Role List",
+            description: error,
+            color: COLORS.error,
+          },
+        ],
+      });
+    }
   }
 }

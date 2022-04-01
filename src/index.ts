@@ -1,6 +1,11 @@
 import { Config } from "./config";
 import { DiscordAdapter } from "./adapters/discord";
-import { Role, RoleManager } from "./ports/roles";
+import {
+  Role,
+  RoleManager,
+  RoleManagerImpl,
+  PGRoleRepository,
+} from "./roles";
 import { wait } from "./utils/wait";
 
 /**
@@ -13,16 +18,9 @@ async function main() {
   // Setup Discord
   const discordAdapter = new DiscordAdapter({
     config: cfg.discord,
-    roleManager: {
-      listRoles: async (): Promise<Role[]> => {
-        return [
-          {
-            name: "role",
-            description: "role role",
-          }
-        ];
-      },
-    },
+    roleManager: new RoleManagerImpl({
+      roleRepo: new PGRoleRepository(),
+    }),
   });
 
   await discordAdapter.setup();
