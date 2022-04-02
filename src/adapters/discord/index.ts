@@ -12,7 +12,7 @@ import {
   ButtonInteraction,
 } from "discord.js";
 
-import { RoleManager } from "../../roles";
+import { RoleListManager } from "../../roles";
 
 import { CreateRoleListDescriber } from "./create-role-list";
 
@@ -295,22 +295,22 @@ export class DiscordAdapter {
   /**
    * The port used to manage roles.
    */
-  roleManager: RoleManager;
+  roleListManager: RoleListManager;
 
   /**
    * Creates a DiscordAdapter.
    * @param config - Discord configuration.
-   * @param roleManager - The role manager used by adapter.
+   * @param roleListManager - The role manager used by adapter.
    */
   constructor({
     config,
-    roleManager,
+    roleListManager,
   }: {
     config: DiscordConfig,
-    roleManager: RoleManager;
+    roleListManager: RoleListManager;
   }) {
     this.config = config;
-    this.roleManager = roleManager;
+    this.roleListManager = roleListManager;
   }
 
   /**
@@ -319,7 +319,7 @@ export class DiscordAdapter {
   getInteractionDescriptions(): InteractionDescription[] {
     const describers = [
       new CreateRoleListDescriber({
-        roleManager: this.roleManager,
+        roleListManager: this.roleListManager,
       }),
     ];
 
@@ -336,6 +336,7 @@ export class DiscordAdapter {
    * Sets up a Discord API client listen for Discord interaction events.
    */
   async setup(): Promise<void> {
+    // Create data structures so we can match interaction descriptions easily
     const interactionDescs = this.getInteractionDescriptions();
 
     const cmdDescs = interactionDescs.filter(isCommandDescription);

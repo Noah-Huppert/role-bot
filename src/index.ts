@@ -2,9 +2,9 @@ import { Config } from "./config";
 import { DiscordAdapter } from "./adapters/discord";
 import {
   Role,
-  RoleManager,
-  RoleManagerImpl,
-  PGRoleRepository,
+  RoleListManager,
+  RoleListManagerImpl,
+  PGRoleListRepository,
 } from "./roles";
 import { wait } from "./utils/wait";
 
@@ -18,10 +18,11 @@ async function main() {
   // Setup Discord
   const discordAdapter = new DiscordAdapter({
     config: cfg.discord,
-    roleManager: new RoleManagerImpl({
-      roleRepo: new PGRoleRepository(),
+    roleListManager: new RoleListManagerImpl({
+      roleListRepo: new PGRoleListRepository(),
     }),
   });
+  
 
   await discordAdapter.setup();
 

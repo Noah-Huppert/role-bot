@@ -7,151 +7,114 @@ import {
 /**
  * A role to be managed by the bot.
  */
-export type Role = {
+export interface Role {
   /**
    * Unique internal identifier for the role.
    */
   id: string;
+
+  /**
+   * Single emoji which represents role.
+   */
+  emoji: string;
   
   /**
    * Name of role.
    */
   name: string;
+}
+
+/**
+ * A list of roles.
+ */
+export interface RoleList {
+  /**
+   * Unique internal identifier.
+   */
+  id: string;
 
   /**
-   * Description of role.
+   * Title of list.
+   */
+  name: string;
+
+  /**
+   * Short blurb about the purpose of the list.
    */
   description: string;
 }
 
 /**
- * Port for managing roles.
+ * Port for managing roles and role lists.
  */
-export interface RoleManager {
+export interface RoleListManager {
   /**
-   * Provide a list of all the roles which exist within the system.
+   * Provide a list of all the role lists.
+   * @returns Array of role lists.
    */
-  listRoles(): Promise<RoleDescription[]>;
+  listRoleLists(): Promise<ListRoleListsResult>;
 
   /**
-   * Make a new role.
-   * @param role - The new role to create. The id field will be ignored.
-   * @returns Role creation result.
+   * Make a new role list.
+   * @param roleList - The new role list to create. The id field will be ignored.
+   * @returns Role list creation result.
    */
-  createRole(role: Role): Promise<CreateRoleResult>;
+  createRoleList(roleList: RoleList): Promise<CreateRoleListResult>;
 }
 
 /**
- * Result of a role creation attempt.
+ * Result of the list role lists operation.
  */
-export type CreateRoleResult = Result<{
-  /**
-   * The role that was created, null if the role creation failed.
-   */
-  role: Role;
-
-  /**
-   * A role description for the role.
-   */
-  roleDesc: RoleDescription;
-}, {
-  /**
-   * Error message if not a success. Null if success.
-   */
-  error: string;
-}>;
+export type ListRoleListsResult = Result<RoleList[], string>;
 
 /**
- * User focused description of a role.
+ * Result of a role list creation attempt.
  */
-export interface RoleDescription {
-  /**
-   * Name of the role.
-   */
-  name: string;
-
-  /**
-   * Short blurb providing context about the role.
-   */
-  tagline: string;
-}
+export type CreateRoleListResult = Result<RoleList, string>;
 
 /**
  * Stores and retrieves roles.
  */
-export interface RoleRepository {
+export interface RoleListRepository {
   /**
-   * Get roles by ID.
-   * @param roleIDs - IDs of roles to fetch, if null then get all Roles.
-   * @returns List of roles as requested by roleIDs.
+   * Get role lists by IDs.
+   * @param roleListIDs - IDs of role lists to retrieve, or null to retrieve them all.
+   * @returns Role lists specified by arguments.
    */
-  getRoles(roleIDs: string[] | null): Promise<Role[]>;
-
-  /**
-   * Store a new role list.
-   * @param role - The new role to create. The id field will be ignored. the repository will internally assign an ID.
-   * @returns The new role, with its id field filled in.
-   */
-  createRole(role: Role): Promise<Role>;
+  listRoleLists(roleListIDs: string[] | null): Promise<Result<RoleList[], string>>;
 }
 
 /**
  * RoleRepository implementation using a Postgres database.
  */
-export class PGRoleRepository implements RoleRepository {
-  async getRoles(roleIDs: string[] | null): Promise<Role[]> {
-    return [];
-  }
-
-  async createRole(role: Role): Promise<Role> {
-    return {
-      ...role,
-      id: "id",
-    }
+export class PGRoleListRepository implements RoleListRepository {
+  async listRoleLists(roleListIDs: string[] | null): Promise<Result<RoleList[], string>> {
+    return Ok([]);
   }
 }
 
 /**
  * RoleManager implementation.
  */
-export class RoleManagerImpl implements RoleManager {
+export class RoleListManagerImpl implements RoleListManager {
   /**
-   * A repository used to store and retrieve roles.
+   * A repository used to store and retrieve roles and role lists.
    */
-  roleRepo: RoleRepository;
+  roleListRepo: RoleListRepository;
 
   constructor({
-    roleRepo,
+    roleListRepo,
   }: {
-    readonly roleRepo: RoleRepository,
+    readonly roleListRepo: RoleListRepository,
   }) {
-    this.roleRepo = roleRepo;
+    this.roleListRepo = roleListRepo;
   }
 
-  /**
-   * Maps a role to a role description.
-   * @param role - The role to convert.
-   * @returns Role description for the role.
-   */
-  roleToDesc(role: Role): RoleDescription {
-    return {
-      name: role.name,
-      tagline: role.description,
-    };
-  }
-  
-  async listRoles(): Promise<RoleDescription[]> {
-    const roles = await this.roleRepo.getRoles(null);
-    
-    return roles.map((role) => this.roleToDesc(role));
+  async listRoleLists(): Promise<ListRoleListsResult> {
+    return Ok([]);
   }
 
-  async createRole(role: Role): Promise<CreateRoleResult> {
-    const newRole = await this.roleRepo.createRole(role);
-
-    return Ok({
-      role: newRole,
-      roleDesc: this.roleToDesc(newRole),
-    });
+  async createRoleList(roleList: RoleList): Promise<CreateRoleListResult> {
+    return Ok(roleList);
   }
 }

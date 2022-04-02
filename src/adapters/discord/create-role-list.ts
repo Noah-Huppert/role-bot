@@ -5,7 +5,7 @@ import {
   MessageActionRow,
 } from "discord.js";
 
-import { RoleManager } from "../../roles";
+import { RoleListManager } from "../../roles";
 import {
   InteractionDescription,
   newCommandDescription,
@@ -20,7 +20,7 @@ type CreateRoleListOpts = {
   /**
    * The role manager port used by the handler.
    */
-  roleManager: RoleManager;
+  roleListManager: RoleListManager;
 };
   
 
@@ -84,13 +84,13 @@ class CreateRoleListHandler {
     const name = cmd.options.getString("name", true);
     const description = cmd.options.getString("description", true);
 
-    const res = await this.opts.roleManager.createRole({
+    const res = await this.opts.roleListManager.createRoleList({
       id: "",
       name,
       description,
     });
     if (res.ok) {
-      const { roleDesc } = res.val;
+      const roleList = res.val;
 
       await cmd.reply({
         embeds: [
@@ -100,12 +100,12 @@ class CreateRoleListHandler {
             fields: [
               {
                 name:"Name",
-                value: roleDesc.name,
+                value: roleList.name,
                 inline: true,
               },
               {
                 name: "Description",
-                value: roleDesc.tagline,
+                value: roleList.description,
                 inline: true,
               }
             ],
@@ -113,7 +113,7 @@ class CreateRoleListHandler {
         ]
       });
     } else {
-      const { error } = res.val;
+      const error = res.val;
       
       await cmd.reply({
         embeds: [
