@@ -82,6 +82,13 @@ export interface RoleListRepository {
    * @returns Role lists specified by arguments.
    */
   listRoleLists(roleListIDs: string[] | null): Promise<Result<RoleList[], string>>;
+
+  /**
+   * Store a new role list.
+   * @param roleList - New role list to create. The id field will be ignored.
+   * @returns New role list with id field set.
+   */
+  createRoleList(roleList: RoleList): Promise<Result<RoleList, string>>;
 }
 
 /**
@@ -90,6 +97,10 @@ export interface RoleListRepository {
 export class PGRoleListRepository implements RoleListRepository {
   async listRoleLists(roleListIDs: string[] | null): Promise<Result<RoleList[], string>> {
     return Ok([]);
+  }
+
+  async createRoleList(roleList: RoleList): Promise<Result<RoleList, string>> {
+    return Ok(roleList);
   }
 }
 
@@ -111,10 +122,30 @@ export class RoleListManagerImpl implements RoleListManager {
   }
 
   async listRoleLists(): Promise<ListRoleListsResult> {
-    return Ok([]);
+    const res = await this.roleListRepo.listRoleLists(null);
+
+    // Error
+    if (!res.ok) {
+      console.error("Failed to list role lists, repository error: ", res.val);
+      
+      return Err("Failed to retrieve role lists.");
+    }
+
+    // Success
+    return Ok(res.val);
   }
 
   async createRoleList(roleList: RoleList): Promise<CreateRoleListResult> {
-    return Ok(roleList);
+    const res = await this.roleListRepo.createRoleList(roleList);
+
+    // Error
+    if (!res.ok) {
+      console.error("Failed to create new role list, repository error: ", res.val);
+
+      return Err("Failed to store new role list.");
+    }
+
+    // Success
+    return Ok(res.val);
   }
 }

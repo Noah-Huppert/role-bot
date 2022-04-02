@@ -14,6 +14,11 @@ import {
 import { COLORS } from "./colors";
 
 /**
+ * The create role list command name.
+ */
+export const CREATE_ROLE_LIST_CMD_NAME = "create-role-list";
+
+/**
  * Dependencies used by the create role list command logic.
  */
 type CreateRoleListOpts = {
@@ -47,7 +52,7 @@ export class CreateRoleListDescriber {
   getInteractionDescriptions(): InteractionDescription[] {
     return [
       newCommandDescription({
-        name: "create-role-list",
+        name: CREATE_ROLE_LIST_CMD_NAME,
         description: "Create a new list of roles from which users can self assign",
         arguments: [
           newCommandDescriptionStringArgument({

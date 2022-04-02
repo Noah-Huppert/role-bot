@@ -4,6 +4,7 @@ import {
   InteractionDescription,
   newCommandDescription,
 } from "./index";
+import { CREATE_ROLE_LIST_CMD_NAME } from "./create-role-list";
 import { COLORS } from "./colors";
 import { RoleListManager } from "../../roles";
 
@@ -76,7 +77,7 @@ class ListRoleListsHandler {
               description: "*No role lists*",
               color: COLORS.success,
               footer: {
-                text: "Use /create-role-list to make some",
+                text: `Use /${CREATE_ROLE_LIST_CMD_NAME} to make some.`,
               },
             },
           ],
