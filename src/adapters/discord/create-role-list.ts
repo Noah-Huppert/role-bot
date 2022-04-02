@@ -47,7 +47,7 @@ export class CreateRoleListDescriber {
   getInteractionDescriptions(): InteractionDescription[] {
     return [
       newCommandDescription({
-        name: "create-role-lists",
+        name: "create-role-list",
         description: "Create a new list of roles from which users can self assign",
         arguments: [
           newCommandDescriptionStringArgument({

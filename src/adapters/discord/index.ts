@@ -15,6 +15,7 @@ import {
 import { RoleListManager } from "../../roles";
 
 import { CreateRoleListDescriber } from "./create-role-list";
+import { ListRoleListsDescriber } from "./list-role-lists";
 
 /**
  * Object which handles a Discord command interaction.
@@ -319,6 +320,9 @@ export class DiscordAdapter {
   getInteractionDescriptions(): InteractionDescription[] {
     const describers = [
       new CreateRoleListDescriber({
+        roleListManager: this.roleListManager,
+      }),
+      new ListRoleListsDescriber({
         roleListManager: this.roleListManager,
       }),
     ];
