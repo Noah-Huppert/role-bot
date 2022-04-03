@@ -13,6 +13,7 @@ import {
 } from "discord.js";
 
 import { RoleListManager } from "../../roles";
+import { DiscordConfig } from "../../config";
 
 import { CreateRoleListDescriber } from "./create-role-list";
 import { ListRoleListsDescriber } from "./list-role-lists";
@@ -259,32 +260,6 @@ export interface HandlerDescriber {
    * @returns A description of what Discord interactions to respond and how to handle the interaction.
    */
   getHandlerDescriptions(): InteractionDescription[];
-}
-
-/**
- * Discord API configuration for behavior and authentication.
- */
-export interface DiscordConfig {
-  /**
-   * Discord API credentials client ID.
-   */
-  clientID: string;
-
-  /**
-   * Discord API authentication token.
-   */
-  apiToken: string;
-
-  /**
-   * Discord IDs of servers (aka guilds) which the bot should act within.
-   * Keys are nicknames of the servers. Values are the guild IDs.
-   */
-  guildIDs: { [key: string]: string };
-
-  /**
-   * The Discord ID of the server which will own custom emojis.
-   */
-  emojiGuildID: string;
 }
 
 export class DiscordAdapter {
