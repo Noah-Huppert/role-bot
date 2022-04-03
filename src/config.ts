@@ -197,7 +197,12 @@ function getEnvVarAnnotation(target: any, field: string): EnvVarAnnotationValue 
  * @param envVarSpec - The envVar annotation value.
  * @returns The environment variable value.
  */
-function retrieveEnvVar<T extends EnvVarAnnotationValue>(envVarSpec: T): T extends EnvVarAnnotationStringValue ? string : (T extends EnvVarAnnotationNumberValue ? number : { [key: string]: string }) {
+function retrieveEnvVar<T extends EnvVarAnnotationValue>(envVarSpec: T):
+  T extends EnvVarAnnotationStringValue ? string :
+  T extends EnvVarAnnotationNumberValue ? number :
+  T extends EnvVarAnnotationMapStringStringValue ? { [key: string]: string } :
+  never
+{
   // Get raw value
   const val = process.env[envVarSpec.name];
 
@@ -206,10 +211,14 @@ function retrieveEnvVar<T extends EnvVarAnnotationValue>(envVarSpec: T): T exten
   //   return envVarSpec.default;
   // }
 
+  if (val === undefined) {
+    throw new Error("Udefined");
+  }
+
   // Convert to correct type
-  if (envVarSpec.type === "number") {
+  if (isEnvVarAnnotationNumberValue(envVarSpec)) {
     return parseInt(val, 10);
-  } else if (envVarSpec.type === "string:string") {
+  } else if (isEnvVarAnnotationMapStringStringValue(envVarSpec)) {
     return strObjFromTuples(val.split(",").map(parseEnvKV))
   }
 
@@ -225,7 +234,7 @@ function retrieveEnvVar<T extends EnvVarAnnotationValue>(envVarSpec: T): T exten
  * @throws Error
  * If the envVar annotation value indicates a different type than T. Or if the field does not have an envVar annotation.
  */
-function retrieveField<T extends "string" | "number" | "string:string">(type: T, target: any, field: string): T extends "string" ? string : (T extends "number" ? number: { [key: string]: string }) {
+function retrieveField<T extends "string" | "number" | "string:string">(type: T, target: any, field: string): T extends "string" ? string : T extends "number" ? number: { [key: string]: string } {
   // Get annotation value
   const envVarSpec = getEnvVarAnnotation(target, field);
   if (envVarSpec === null) {
@@ -233,7 +242,7 @@ function retrieveField<T extends "string" | "number" | "string:string">(type: T,
   }
 
   // Check type of envVar value matches expected type
-  if (envVarSpec.type !== type) {
+  if ((type === "string" && !isEnvVarAnnotationStringValue(envVarSpec)) || (type === "number" && !isEnvVarAnnotationNumberValue(envVarSpec)) || (type === "string:string" &&  !isEnvVarAnnotationMapStringStringValue(envVarSpec))) {
     throw new Error(`Generic type parameter T specified type '${type}' but field '${field}' had type '${envVarSpec.type}'`);
   }
 
@@ -245,6 +254,18 @@ function retrieveField<T extends "string" | "number" | "string:string">(type: T,
  * Value for the envVar annotation. Carries value of env var and then any type information.
  */
 type EnvVarAnnotationValue = EnvVarAnnotationStringValue | EnvVarAnnotationNumberValue | EnvVarAnnotationMapStringStringValue;
+
+function isEnvVarAnnotationStringValue(v: EnvVarAnnotationValue): v is EnvVarAnnotationStringValue {
+  return v.type === "string" || v.type === undefined;
+}
+
+function isEnvVarAnnotationNumberValue(v: EnvVarAnnotationValue): v is EnvVarAnnotationNumberValue {
+  return v.type === "number";
+}
+
+function isEnvVarAnnotationMapStringStringValue(v: EnvVarAnnotationValue): v is EnvVarAnnotationMapStringStringValue {
+  return v.type === "string:string";
+}
 
 /**
  * Value for the envVar annotation which is a string.
