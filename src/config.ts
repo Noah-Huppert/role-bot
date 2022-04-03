@@ -22,26 +22,107 @@ export interface Config {
 }
 
 /**
+ * Provides a utility method which calls retrieveField and keeps track of any errors.
+ */
+class EnvVarErrorTracker {
+  /**
+   * Fields and the error that occurred when loading them.
+   */
+  envVarLoadErrors: { field: string, error: string }[];
+
+  /**
+   * Initializes EnvVarErrorTracker.
+   */
+  constructor() {
+    this.envVarLoadErrors = []
+  }
+
+  /**
+   * Calls the provided function, if an error occurs catches it and records it for later use in {@link ensureNoErrors}.
+   * @typeParam T - The return type of the function.
+   * @param field - Name of field to which error should be attributed.
+   * @param errorReturn - The value which be returned in case of error.
+   */
+  wrapCall<T>(field: string, fn: () => T, errorReturn: T): T {
+    try {
+      return fn();
+    } catch (e) {
+      this.envVarLoadErrors.push({
+        field: field,
+        error: String(e),
+      });
+
+      return errorReturn;
+    }
+  }
+
+  /**
+   * Calls {@link retrieveField()} for a field. If an error occurs then keeps track of it, to be later re-raised by {@link ensureNoErrors()}.
+   * @param field - Name of the field for which to call {@link retrieveField()}.
+   * @returns The retrieved env var. If an error occurs a dummy RetrievedEnvVar is returned which has empty values.
+   */
+  retrieveField(field: string): RetrievedEnvVar {
+    return this.wrapCall(
+      field,
+      () => retrieveField(this, field),
+      {
+        asString: (): string => "",
+        asNumber: (): number => 0,
+        asObject: (): { [key: string]: string } => { return {}; },
+      });
+  }
+
+  /**
+   * Ensures no errors occurred during {@link retrieveField} calls.
+   * @param msgPrefix - If provided this text will be placed before the default error text in the thrown exception.
+   * @throws
+   * Any errors which occurred during retrieveField errors.
+   */
+  ensureNoErrors(msgPrefix: string = "") {
+    // If no errors occurred
+    if (this.envVarLoadErrors.length === 0) {
+      return;
+    }
+
+    // If errors occurred
+    throw new Error(msgPrefix + "[ " + this.envVarLoadErrors.map((e) => `${e.field}: ${e.error}`).join(", ") + " ]");
+  }
+}
+
+/**
  * Loads chat bot configuration values from environment variables.
  */
-export class EnvConfig implements Config {
+export class EnvConfig extends EnvVarErrorTracker implements Config {
   /**
    * {@link Config.discord}
+   * Loaded using {@link EnvDiscordConfig}.
    */
-  discord: EnvDiscordConfig;
+  discord: DiscordConfig;
 
   /**
    * {@link Config.postgres}
-   *
+   * Loaded using {@link EnvPostgresConfig}.
    */
-  postgres: EnvPostgresConfig;
+  postgres: PostgresConfig;
 
   /**
    * Loads field values from environment variables.
+   * @throws
+   * If environment variables fail to load.
    */
   constructor() {
-    this.discord = new EnvDiscordConfig();
-    this.postgres = new EnvPostgresConfig();
+    super();
+    
+    this.discord = this.wrapCall<DiscordConfig>(
+      "discord",
+      () => new EnvDiscordConfig(),
+      { clientID: "", apiToken: "", guildIDs: {}, emojiGuildID: "" });
+    this.postgres = this.wrapCall<PostgresConfig>(
+      "postgres",
+      () => new EnvPostgresConfig(),
+      { host: "", port: 0, database: "", username: "", password: "" });
+    
+    this.ensureNoErrors();
   }
 }
 
@@ -74,7 +155,7 @@ export interface DiscordConfig {
 /**
  * Loads DiscordConfig from the environment,
  */
-export class EnvDiscordConfig implements DiscordConfig {
+export class EnvDiscordConfig extends EnvVarErrorTracker implements DiscordConfig {
   /**
    * {@link DiscordConfig.clientID}
    */
@@ -90,7 +171,7 @@ export class EnvDiscordConfig implements DiscordConfig {
   /**
    * {@link DiscordConfig.guildIDs}
    */
-  @envVar({ name: "ROLE_BOT_DISCORD_GUILD_IDS", type: "string:string" })
+  @envVar({ name: "ROLE_BOT_DISCORD_GUILD_IDS" })
   guildIDs: { [key: string]: string };
 
   /**
@@ -101,12 +182,18 @@ export class EnvDiscordConfig implements DiscordConfig {
 
   /**
    * Loads values from environment variables.
+   * @throws
+   * If environment variables fail to load.
    */
   constructor() {
-    this.clientID = retrieveField("string", this, "clientID");
-    this.apiToken = retrieveField("string", this, "apiToken");
-    this.guildIDs = retrieveField("string:string", this, "guildIDs");
-    this.emojiGuildID = retrieveField("string", this, "emojiGuildID");
+    super();
+    
+    this.clientID = this.retrieveField("clientID").asString();
+    this.apiToken = this.retrieveField("apiToken").asString();
+    this.guildIDs = this.retrieveField("guildIDs").asObject();
+    this.emojiGuildID = this.retrieveField("emojiGuildID").asString();
+    
+    this.ensureNoErrors();
   }
 }
 
@@ -143,7 +230,7 @@ export interface PostgresConfig {
 /**
  * Loads postgres configuration from the environment.
  */
-export class EnvPostgresConfig implements PostgresConfig {
+export class EnvPostgresConfig extends EnvVarErrorTracker implements PostgresConfig {
   /**
    * {@link PostgresConfig.host}
    */
@@ -153,7 +240,7 @@ export class EnvPostgresConfig implements PostgresConfig {
   /**
    * {@link PostgresConfig.port}
    */
-  @envVar({ name: "ROLE_BOT_POSTGRES_PORT", type: "number", default: 5432 })
+  @envVar({ name: "ROLE_BOT_POSTGRES_PORT", default: "5432" })
   port: number;
 
   /**
@@ -171,18 +258,24 @@ export class EnvPostgresConfig implements PostgresConfig {
   /**
    * {@link PostgresConfig.password}
    */
-  @envVar({ name: "ROLE_BOT_POSTGRES_PASSWORD" })
+  @envVar({ name: "ROLE_BOT_POSTGRES_PASSWORD", default: "" })
   password?: string;
 
   /**
    * Loads values from environment variables.
+   * @throws
+   * If environment variables fail to load.
    */
   constructor() {
-    this.host = retrieveField("string", this, "host");
-    this.port = retrieveField("number", this, "port");
-    this.database = retrieveField("string", this, "database");
-    this.username = retrieveField("string", this, "username");
-    this.password = retrieveField("string", this, "password");
+    super();
+    
+    this.host = this.retrieveField("host").asString();
+    this.port = this.retrieveField("port").asNumber();
+    this.database = this.retrieveField("database").asString();
+    this.username = this.retrieveField("username").asString();
+    this.password = this.retrieveField("password").asString();
+    
+    this.ensureNoErrors();
   }
 }
 
@@ -233,129 +326,107 @@ function parseEnvKV(str: string): [string, string] {
 
 /**
  * Decorator which annotates from which environment variable values should be loaded.
- * @param envVar - The environment variable from which the field should be loaded.
- * @param type - The type of the environment variable.
+ * @param spec - Description of the environment variable.
+ * @returns A decorator which stores a function to get the specified environment variable value. This function can then be called later, and will throw errors if a required value is missing.
  */
-function envVar(value: EnvVarAnnotationValue): (target: any, propertyKey: string) => void {
+function envVar(spec: EnvVarAnnotationValue): (target: any, propertyKey: string) => void {
   return function(target: any, propertyKey: string) {
-    Reflect.defineMetadata(ENV_VAR_METADATA_KEY, value, target, propertyKey);
+    // Reflect.defineMetadata(ENV_VAR_METADATA_KEY, value, target, propertyKey);
+    const getValue = newRetrievedEnvVar(spec);
+    
+    Reflect.defineMetadata(ENV_VAR_METADATA_KEY, getValue, target, propertyKey);
   }
+}
+
+/**
+ * Factory which creates a function to retrieve the environment variable specified by the {@link spec}.
+ * @param spec- Description of the environment variable.
+ * @returns Function which when called returns a utility helper to get the correct type of the value.
+ */ 
+function newRetrievedEnvVar(spec: EnvVarAnnotationValue): () => RetrievedEnvVar {
+  return (): RetrievedEnvVar => {
+    // Get value
+    let _val = process.env[spec.name];
+    if (_val === undefined && spec.default !== undefined) {
+      _val = spec.default;
+    }
+
+    const val = _val;
+
+    // If not found and required
+    if (val === undefined) {
+      throw new Error(`The '${spec.name}' environment variable is required but was not set`);
+    }
+
+    return {
+      asString(): string {
+        return val;
+      },
+      asNumber(): number {
+        return parseInt(val, 10);
+      },
+      asObject(): { [key: string]: string } {
+        return strObjFromTuples(val.split(",").map(parseEnvKV))
+      },
+    };
+  }
+}
+
+/**
+ * Helper methods which manipulate an environment variable value into the desired type.
+ */
+interface RetrievedEnvVar {
+  /**
+   * @returns The env var as a string.
+   */
+  asString(): string;
+
+  /**
+   * @returns The env var as a number.
+   */
+  asNumber(): number;
+
+  /**
+   * @returns The env var as an object with string keys and values.
+   */
+  asObject(): { [key: string]: string };
 }
 
 /**
  * Gets the value indicated by the envVar annotation.
  * @param target - The object to retrieve annotation value
  * @param field - The field's name on the target for which to get the annotation value
- * @returns The environment variable in which the field's value will be stored, or null if not specified with an envVar annotation.
+ * @returns A factory method to access the environment variable's value. If no annotation is present on the field then a factory method which only throws an error is returned.
  */
-function getEnvVarAnnotation(target: any, field: string): EnvVarAnnotationValue | null {
+function getEnvVarAnnotation(target: any, field: string): () => RetrievedEnvVar {
   if (!Reflect.getMetadata(ENV_VAR_METADATA_KEY, target, field)) {
-    return null;
+    return (): RetrievedEnvVar => {
+      throw new Error(`Field '${field}' does not have @envVar() annotation, but one was expected at runtime`);
+    }
   }
 
   return Reflect.getMetadata(ENV_VAR_METADATA_KEY, target, field);
 }
 
 /**
- * Retrieve and environment variable as specified by the envVar annotation.
- * @typeParam T - The type of EnvVarAnnotationValue, used to create the conditionally correct return type.
- * @param envVarSpec - The envVar annotation value.
- * @returns The environment variable value.
- */
-function retrieveEnvVar<T extends EnvVarAnnotationValue>(envVarSpec: T):
-  T extends EnvVarAnnotationStringValue ? string :
-  T extends EnvVarAnnotationNumberValue ? number :
-  T extends EnvVarAnnotationMapStringStringValue ? { [key: string]: string } :
-  never
-{
-  // Get raw value
-  const val = process.env[envVarSpec.name];
-
-  // if (val === undefined && envVarSpec.default !== undefined) {
-  //   // If env var missing but default is defined
-  //   return envVarSpec.default;
-  // }
-
-  if (val === undefined) {
-    throw new Error("Udefined");
-  }
-
-  // Convert to correct type
-  if (isEnvVarAnnotationNumberValue(envVarSpec)) {
-    return parseInt(val, 10);
-  } else if (isEnvVarAnnotationMapStringStringValue(envVarSpec)) {
-    return strObjFromTuples(val.split(",").map(parseEnvKV))
-  }
-
-  return val;
-}
-
-/**
  * Retrieve an environment variable for a specific field in a structure annotated with envVar.
- * @typeParam T - One of the EnvVarAnnotationValue type field values, forces the correct return type.
  * @param target - The annotated structure.
  * @param field - The name of the field to retrieve.
  * @returns The field's value.
  * @throws Error
- * If the envVar annotation value indicates a different type than T. Or if the field does not have an envVar annotation.
+ * If the field does not have an envVar annotation.
+ * If the env var is required but does not exist.
  */
-function retrieveField<T extends "string" | "number" | "string:string">(type: T, target: any, field: string): T extends "string" ? string : T extends "number" ? number: { [key: string]: string } {
+function retrieveField(target: any, field: string): RetrievedEnvVar {
   // Get annotation value
-  const envVarSpec = getEnvVarAnnotation(target, field);
-  if (envVarSpec === null) {
-    throw new Error(`Failed to retrieve '${field}' value, no envVar annotation`);
-  }
-
-  // Check type of envVar value matches expected type
-  if ((type === "string" && !isEnvVarAnnotationStringValue(envVarSpec)) || (type === "number" && !isEnvVarAnnotationNumberValue(envVarSpec)) || (type === "string:string" &&  !isEnvVarAnnotationMapStringStringValue(envVarSpec))) {
-    throw new Error(`Generic type parameter T specified type '${type}' but field '${field}' had type '${envVarSpec.type}'`);
-  }
-
-  // Get value from environment variable
-  return retrieveEnvVar(envVarSpec);
+  const factory = getEnvVarAnnotation(target, field);
+  return factory();
 }
 
 /**
- * Value for the envVar annotation. Carries value of env var and then any type information.
+ * The envVar annotation fields.
  */
-type EnvVarAnnotationValue = EnvVarAnnotationStringValue | EnvVarAnnotationNumberValue | EnvVarAnnotationMapStringStringValue;
-
-function isEnvVarAnnotationStringValue(v: EnvVarAnnotationValue): v is EnvVarAnnotationStringValue {
-  return v.type === "string" || v.type === undefined;
-}
-
-function isEnvVarAnnotationNumberValue(v: EnvVarAnnotationValue): v is EnvVarAnnotationNumberValue {
-  return v.type === "number";
-}
-
-function isEnvVarAnnotationMapStringStringValue(v: EnvVarAnnotationValue): v is EnvVarAnnotationMapStringStringValue {
-  return v.type === "string:string";
-}
-
-/**
- * Value for the envVar annotation which is a string.
- */
-type EnvVarAnnotationStringValue = {
-  /**
-   * Indicates envVar annotation value is a string. Can be undefined which means this is the default type for EnvVarAnnotationValue.
-   */
-  type?: "string";
-} & EnvVarAnnotationValueSpec<string>;
-
-/**
- * Value for the envVar annotation which is a number.
- */
-type EnvVarAnnotationNumberValue = { type: "number" } & EnvVarAnnotationValueSpec<number>;
-
-/**
- * Value for the envVar annotation which is an object with string keys and values.
- */
-type EnvVarAnnotationMapStringStringValue = { type: "string:string" } & EnvVarAnnotationValueSpec<{ [key: string]: string }>;
-
-/**
- * Generic envVar annotation value with common fields.
- */
-type EnvVarAnnotationValueSpec<T> = {
+type EnvVarAnnotationValue = {
   /**
    * Name of the environment variable.
    */
@@ -363,6 +434,7 @@ type EnvVarAnnotationValueSpec<T> = {
 
   /**
    * The default value of the environment variable if not set.
+   * Environment variables are all strings to start, so provide the string serialized version of the default value.
    */
-  default?: T;
+  default?: string;
 };
