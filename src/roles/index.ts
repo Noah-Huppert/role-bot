@@ -3,6 +3,7 @@ import {
   Ok,
   Err,
 } from "ts-results";
+import { Client as PGClient } from "ts-postgres";
 
 /**
  * A role to be managed by the bot.

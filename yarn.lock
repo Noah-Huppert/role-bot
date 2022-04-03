@@ -2698,6 +2698,11 @@ readdirp@~3.6.0:
   dependencies:
     picomatch "^2.2.1"
 
+reflect-metadata@^0.1.13:
+  version "0.1.13"
+  resolved "https://registry.yarnpkg.com/reflect-metadata/-/reflect-metadata-0.1.13.tgz#67ae3ca57c972a2aa1642b10fe363fe32d49dc08"
+  integrity sha512-Ts1Y/anZELhSsjMcU605fU9RE4Oi3p5ORujwbIKXfWa+0Zxs510Qrmrce5/Jowq3cHSZSJqBjypxmHarc+vEWg==
+
 registry-auth-token@^4.0.0:
   version "4.2.1"
   resolved "https://registry.yarnpkg.com/registry-auth-token/-/registry-auth-token-4.2.1.tgz#6d7b4006441918972ccd5fedcd41dc322c79b250"
@@ -3027,10 +3032,22 @@ ts-node@^10.2.0:
     make-error "^1.1.1"
     yn "3.1.1"
 
+ts-postgres@^1.2.1:
+  version "1.2.1"
+  resolved "https://registry.yarnpkg.com/ts-postgres/-/ts-postgres-1.2.1.tgz#c49f6802c04e1ed6cdbe9cc03c96b83cbd2c045b"
+  integrity sha512-5cCIdGMMlX8g+cFs0DFykLKyTmPvJ9gCv5TR13R90Azz8gzEtugYq6gKm5glBXF66gtvsP/lUashU5akfQsFaA==
+  dependencies:
+    ts-typed-events "^2.0.1"
+
 ts-results@^3.3.0:
   version "3.3.0"
   resolved "https://registry.yarnpkg.com/ts-results/-/ts-results-3.3.0.tgz#68623a6c18e65556287222dab76498a28154922f"
   integrity sha512-FWqxGX2NHp5oCyaMd96o2y2uMQmSu8Dey6kvyuFdRJ2AzfmWo3kWa4UsPlCGlfQ/qu03m09ZZtppMoY8EMHuiA==
+
+ts-typed-events@^2.0.1:
+  version "2.0.1"
+  resolved "https://registry.yarnpkg.com/ts-typed-events/-/ts-typed-events-2.0.1.tgz#8718e41ee6d38a6f1586224b3f7015c769cf0da9"
+  integrity sha512-7V+vCn52mZVSe+udf0L2SRkvs8BquF7xOtVktJsiyz3IGgcAhHwp3aetPcrxT5Xq23Bb/tBX0azQ6BBvPVytZg==
 
 tslib@^2.3.0, tslib@^2.3.1:
   version "2.3.1"
