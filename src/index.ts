@@ -1,4 +1,4 @@
-import { Config } from "./config";
+import { EnvConfig } from "./config";
 import { DiscordAdapter } from "./adapters/discord";
 import {
   Role,
@@ -13,7 +13,7 @@ import { wait } from "./utils/wait";
  */
 async function main() {
   // Load configuration
-  const cfg = new Config();
+  const cfg = new EnvConfig();
 
   // Setup Discord
   const discordAdapter = new DiscordAdapter({

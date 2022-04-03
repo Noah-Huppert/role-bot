@@ -7,16 +7,10 @@ const ENV_VAR_METADATA_KEY = "com.noahhuppert.role-bot.config.envVar";
 
 /**
  * Chat bot configuration.
- * Loads values from environment variables.
  */
-export class Config {
+export interface Config {
   /**
    * Discord API configuration.
-   * Env vars for fields:
-   * - clientID: ROLE_BOT_DISCORD_CLIENT_ID
-   * - apiToken: ROLE_BOT_DISCORD_API_TOKEN
-   * - guildIDs: ROLE_BOT_DISCORD_GUILD_IDS
-   * - emojiGuildID: ROLE_BOT_DISCORD_EMOJI_GUILD_ID
    */
   discord: DiscordConfig;
 
@@ -25,41 +19,82 @@ export class Config {
    *
    */
   postgres: PostgresConfig;
+}
+
+/**
+ * Loads chat bot configuration values from environment variables.
+ */
+export class EnvConfig implements Config {
+  /**
+   * {@link Config.discord}
+   */
+  discord: EnvDiscordConfig;
+
+  /**
+   * {@link Config.postgres}
+   *
+   */
+  postgres: EnvPostgresConfig;
 
   /**
    * Loads field values from environment variables.
    */
   constructor() {
-    this.discord = new DiscordConfig();
-    this.postgres = new PostgresConfig();
+    this.discord = new EnvDiscordConfig();
+    this.postgres = new EnvPostgresConfig();
   }
 }
 
 /**
  * Discord API configuration for behavior and authentication.
  */
-export class DiscordConfig {
+export interface DiscordConfig {
   /**
    * Discord API credentials client ID.
    */
-  @envVar({ name: "ROLE_BOT_DISCORD_CLIENT_ID" })
   clientID: string;
 
   /**
    * Discord API authentication token.
    */
-  @envVar({ name: "ROLE_BOT_DISCORD_API_TOKEN" })
   apiToken: string;
 
   /**
    * Discord IDs of servers (aka guilds) which the bot should act within.
    * Keys are nicknames of the servers. Values are the guild IDs.
    */
-  @envVar({ name: "ROLE_BOT_DISCORD_GUILD_IDS", type: "string:string" })
   guildIDs: { [key: string]: string };
 
   /**
    * The Discord ID of the server which will own custom emojis.
+   */
+  emojiGuildID: string;
+}
+
+/**
+ * Loads DiscordConfig from the environment,
+ */
+export class EnvDiscordConfig implements DiscordConfig {
+  /**
+   * {@link DiscordConfig.clientID}
+   */
+  @envVar({ name: "ROLE_BOT_DISCORD_CLIENT_ID" })
+  clientID: string;
+
+  /**
+   * {@link DiscordConfig.apiToken}
+   */
+  @envVar({ name: "ROLE_BOT_DISCORD_API_TOKEN" })
+  apiToken: string;
+
+  /**
+   * {@link DiscordConfig.guildIDs}
+   */
+  @envVar({ name: "ROLE_BOT_DISCORD_GUILD_IDS", type: "string:string" })
+  guildIDs: { [key: string]: string };
+
+  /**
+   * {@link DiscordConfig.emojiGuildID}
    */
   @envVar({ name: "ROLE_BOT_DISCORD_EMOJI_GUILD_ID" })
   emojiGuildID: string;
@@ -78,33 +113,63 @@ export class DiscordConfig {
 /**
  * Postgres database configuration.
  */
-export class PostgresConfig {
+export interface PostgresConfig {
   /**
    * Host of Postgres database.
    */
-  @envVar({ name: "ROLE_BOT_POSTGRES_HOST", default: "postgres" })
   host: string;
 
   /**
    * Port of the Postgres database.
    */
-  @envVar({ name: "ROLE_BOT_POSTGRES_PORT", type: "number", default: 5432 })
   port: number;
 
   /**
    * Name of the database.
    */
-  @envVar({ name: "ROLE_BOT_POSTGRES_DATABASE", default: "dev-role-bot" })
   database: string;
 
   /**
    * Name of user used to authenticate with the database.
    */
-  @envVar({ name: "ROLE_BOT_POSTGRES_USERNAME", default: "dev-role-bot" })
   username: string;
 
   /**
    * Password used to authenticate with the database.
+   */
+  password?: string;
+}
+
+/**
+ * Loads postgres configuration from the environment.
+ */
+export class EnvPostgresConfig implements PostgresConfig {
+  /**
+   * {@link PostgresConfig.host}
+   */
+  @envVar({ name: "ROLE_BOT_POSTGRES_HOST", default: "postgres" })
+  host: string;
+
+  /**
+   * {@link PostgresConfig.port}
+   */
+  @envVar({ name: "ROLE_BOT_POSTGRES_PORT", type: "number", default: 5432 })
+  port: number;
+
+  /**
+   * {@link PostgresConfig.database}
+   */
+  @envVar({ name: "ROLE_BOT_POSTGRES_DATABASE", default: "dev-role-bot" })
+  database: string;
+
+  /**
+   * {@link PostgresConfig.username}
+   */
+  @envVar({ name: "ROLE_BOT_POSTGRES_USERNAME", default: "dev-role-bot" })
+  username: string;
+
+  /**
+   * {@link PostgresConfig.password}
    */
   @envVar({ name: "ROLE_BOT_POSTGRES_PASSWORD" })
   password?: string;
