@@ -2,8 +2,13 @@ import {
   Result,
   Ok,
   Err,
+  Option,
+  Some,
+  None,
 } from "ts-results";
 import { Client as PGClient } from "ts-postgres";
+
+import { PostgresConfig } from "../config";
 
 /**
  * A role to be managed by the bot.
@@ -96,6 +101,46 @@ export interface RoleListRepository {
  * RoleRepository implementation using a Postgres database.
  */
 export class PGRoleListRepository implements RoleListRepository {
+  /**
+   * Details about how to connect to the database and where to store data.
+   */
+  cfg: PostgresConfig;
+
+  /**
+   * The database connection. Singleton which should be accessed via db.
+   */
+  _db: Some<PGClient>;
+
+  /**
+   * Initializes a PGRoleListRepository.
+   * @param cfg - {@link cfg}
+   */
+  constructor(cfg: PostgresConfig) {
+    this.cfg = cfg;
+    this._db = None;
+  }
+
+  /**
+   * Access the db singleton. Creates a database connection if not already made.
+   * @returns Promise which resolves with database client.
+   */
+  async db(): Promise<PGClient> {
+    if (this._db.some) {
+      // Database client already made
+      return this._db.value;
+    } else {
+      // No database connection yet, create one and save
+      const db = new PGClient({
+        ...this.cfg,
+      });
+
+      this._db = Some(db);
+
+      return db;
+    }
+  }
+  
+  
   async listRoleLists(roleListIDs: string[] | null): Promise<Result<RoleList[], string>> {
     return Ok([]);
   }

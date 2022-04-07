@@ -357,8 +357,8 @@ export class DiscordAdapter {
 
     const discordREST = new DiscordREST({ version: "9" }).setToken(this.config.apiToken);
 
-    await Promise.all(Object.values(this.config.guildIDs).map(async (guildID) => {
-      console.log(`Setup Discord commands for ${guildID}`);
+    await Promise.all(Object.entries(this.config.guildIDs).map(async ([name, guildID]) => {
+      console.log(`Setup Discord commands for ${name} (${guildID})`);
       await discordREST.put(DiscordRESTRoutes.applicationGuildCommands(this.config.clientID, guildID), { body: cmdsJSON });
     }));
 

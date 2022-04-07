@@ -8,6 +8,7 @@ import {
 } from "./roles";
 import { wait } from "./utils/wait";
 
+
 /**
  * Primary entrypoint for the program.
  */
@@ -19,7 +20,7 @@ async function main() {
   const discordAdapter = new DiscordAdapter({
     config: cfg.discord,
     roleListManager: new RoleListManagerImpl({
-      roleListRepo: new PGRoleListRepository(),
+      roleListRepo: new PGRoleListRepository(cfg.postgres),
     }),
   });
   
