@@ -1,0 +1,5 @@
+{
+  "dir": "dbmigration",
+  "migrationExtension": "ts",
+  "sourceMigrationExtension": "ts"
+}
