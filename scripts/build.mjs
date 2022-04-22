@@ -6,10 +6,12 @@ export const BUILD_CONFIG = {
 	  "./src/index.ts",
   ],
   outdir: "./dist",
+  bundle: false,
+  sourcemap: "inline",
   platform: "node",
-  bundle: true,
-  target: "es2020",
-  platform: "node",
+  tsconfig: "tsconfig.json",
+  // external: ["./node_modules/*"],
+  // format: "esm",
 };
 
 if (import.meta.url === `file://${process.argv[1]}`) {
