@@ -1,5 +1,5 @@
 {
-  "watch": [ "dist", "package.json", "scripts", "tsconfig.json", "nodemon.json" ],
-  "exec": "yarn start",
-  "ext": "js"
+  "watch": [ "src", "package.json", "tsconfig.json", "nodemon.json" ],
+  "exec": "yarn dev",
+  "ext": "ts"
 }
