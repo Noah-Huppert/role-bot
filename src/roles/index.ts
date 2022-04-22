@@ -109,7 +109,7 @@ export class PGRoleListRepository implements RoleListRepository {
   /**
    * The database connection. Singleton which should be accessed via db.
    */
-  _db: Some<PGClient>;
+  _db: Option<PGClient>;
 
   /**
    * Initializes a PGRoleListRepository.
@@ -127,7 +127,7 @@ export class PGRoleListRepository implements RoleListRepository {
   async db(): Promise<PGClient> {
     if (this._db.some) {
       // Database client already made
-      return this._db.value;
+      return this._db.val;
     } else {
       // No database connection yet, create one and save
       const db = new PGClient({
