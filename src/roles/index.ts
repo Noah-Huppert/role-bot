@@ -20,11 +20,6 @@ export interface Role {
   id: string;
 
   /**
-   * Single emoji which represents role.
-   */
-  emoji: string;
-  
-  /**
    * Name of role.
    */
   name: string;
