@@ -1,5 +1,7 @@
 import "reflect-metadata";
 
+import { URL } from "url";
+
 /**
  * The metadata key used to store the envVar value for the envVar annotation.
  */
@@ -120,7 +122,14 @@ export class EnvConfig extends EnvVarErrorTracker implements Config {
     this.postgres = this.wrapCall<PostgresConfig>(
       "postgres",
       () => new EnvPostgresConfig(),
-      { host: "", port: 0, database: "", username: "", password: "" });
+      {
+        host: "",
+        port: 0,
+        database: "",
+        username: "",
+        password: "",
+        pgURI: () => "",
+      });
     
     this.ensureNoErrors();
   }
@@ -225,6 +234,11 @@ export interface PostgresConfig {
    * Password used to authenticate with the database.
    */
   password?: string;
+
+  /**
+   * @returns Postgres connection URI using given parameters.
+   */
+  pgURI(): string;
 }
 
 /**
@@ -246,19 +260,19 @@ export class EnvPostgresConfig extends EnvVarErrorTracker implements PostgresCon
   /**
    * {@link PostgresConfig.database}
    */
-  @envVar({ name: "ROLE_BOT_POSTGRES_DATABASE", default: "dev-role-bot" })
+  @envVar({ name: "ROLE_BOT_POSTGRES_DATABASE", default: "devrolebot" })
   database: string;
 
   /**
    * {@link PostgresConfig.username}
    */
-  @envVar({ name: "ROLE_BOT_POSTGRES_USERNAME", default: "dev-role-bot" })
+  @envVar({ name: "ROLE_BOT_POSTGRES_USERNAME", default: "devrolebot" })
   username: string;
 
   /**
    * {@link PostgresConfig.password}
    */
-  @envVar({ name: "ROLE_BOT_POSTGRES_PASSWORD", default: "" })
+  @envVar({ name: "ROLE_BOT_POSTGRES_PASSWORD", default: "devrolebot" })
   password?: string;
 
   /**
@@ -276,6 +290,19 @@ export class EnvPostgresConfig extends EnvVarErrorTracker implements PostgresCon
     this.password = this.retrieveField("password").asString();
     
     this.ensureNoErrors();
+  }
+
+  /**
+   * {@link PostgresConfig.pgURI}
+   */
+  pgURI(): string {
+    const uri = new URL("", `postgres://${this.username}@${this.host}:${this.port}/${this.database}`);
+
+    if (this.password) {
+      uri.password = this.password;
+    }
+
+    return uri.toString();
   }
 }
 

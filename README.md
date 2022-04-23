@@ -15,11 +15,18 @@ A Docker container is provided with NodeJS and Yarn installed. Docker and Docker
 
 To run and develop the bot:
 
-1. Start the Docker Compose stack:
+1. Setup bot configuration by following the [Configuration section](#configuration) steps
+2. Start the Docker Compose stack:
    ```shell
    ./scripts/dev.sh
    ```
    See `./scripts/dev.sh -h` for more advanced usage.
+3. Setup the Postgres database:
+   ```shell
+   ./scripts/dev.sh shell=
+   # Next command inside the container shell
+   yarn migrate
+   ```
 
 ## Manual Steps
 NodeJS and Yarn must be installed.
@@ -30,16 +37,21 @@ To run and develop the bot:
    ```shell
    yarn install
    ```
-2. Source environment variables
+2. Setup bot configuration by following the [Configuration section](#configuration) steps
+3. Source environment variables
    ```shell
    source ./.env
    ```
-3. Start development watch serer:
+4. Setup the Postgres database:
+   ```shell
+   yarn migrate
+   ```
+5. Start development watch server:
    ```shell
    yarn watch
    ```
    
- The `./scripts/dev-entrypoint.sh` automates this process.
+ The `./scripts/dev-entrypoint.sh` automates most of this process.
 
 # Configuration
 Environment variables are used to provide all configuration values. See the `Config` class field documentation comments in [`config.ts`](./src/config.ts) for names of associated environment variables and their purposes.
