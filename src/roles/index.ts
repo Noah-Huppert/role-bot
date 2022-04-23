@@ -46,6 +46,31 @@ export interface RoleList {
 }
 
 /**
+ * Membership of role in role list.
+ */
+export interface RoleListRole {
+  /**
+   * Unique identifier of join table row.
+   */
+  id: string;
+
+  /**
+   * ID of role list.
+   */
+  roleListID: string;
+
+  /**
+   * ID of role.
+   */
+  roleID: string;
+
+  /**
+   * Emoji which is used to represent role in role list.
+   */
+  emoji: string;
+}
+
+/**
  * Port for managing roles and role lists.
  */
 export interface RoleListManager {
@@ -90,6 +115,14 @@ export interface RoleListRepository {
    * @returns New role list with id field set.
    */
   createRoleList(roleList: RoleList): Promise<Result<RoleList, string>>;
+
+  
+  /**
+   * Get the roles which are part of a role list.
+   * @param roleListId - ID of the role list for which to get roles.
+   * @returns Role list role membership join entities.
+   */
+  listRoleListRoles(roleListID: string): Promise<Result<RoleListRole[], string>>;
 }
 
 /**
@@ -142,6 +175,10 @@ export class PGRoleListRepository implements RoleListRepository {
 
   async createRoleList(roleList: RoleList): Promise<Result<RoleList, string>> {
     return Ok(roleList);
+  }
+
+  async listRoleListRoles(roleListID: string): Promise<Result<RoleListRole[], string>> {
+    return Ok([]);
   }
 }
 
