@@ -3,6 +3,8 @@ import { MigrationManager } from "east";
 import { EnvPostgresConfig } from "./config";
 
 async function main() {
+  console.log("Starting migrations");
+  
   const migrationManager = new MigrationManager();
 
   // log target migrations before execution
@@ -12,7 +14,6 @@ async function main() {
 
   // Configure
   const pgCfg = new EnvPostgresConfig();
-  console.log("pgURI: ", pgCfg.pgURI());
 
   await migrationManager.configure({
     adapter: "east-postgres",
@@ -22,6 +23,7 @@ async function main() {
   // Migrate
   try {
     await migrationManager.connect();
+    
     // select for migration all not executed migrations
     await migrationManager.migrate({ status: "new" });
   } finally {
@@ -31,4 +33,7 @@ async function main() {
 
 main().catch((err) => {
   console.error("Error occurred while migrating database: ", err.stack || err);
+  process.exit(1);
+}).then(() => {
+  console.log("Done migrating");
 });

@@ -1,5 +1,5 @@
 {
-  "watch": [ "src", "package.json", "tsconfig.json", "nodemon.json" ],
+  "watch": [ "src", "dbmigration", "types", "package.json", "tsconfig.json", "nodemon.json" ],
   "exec": "yarn dev",
-  "ext": "ts"
+  "ext": "*"
 }

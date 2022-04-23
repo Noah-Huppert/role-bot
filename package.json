@@ -8,14 +8,15 @@
   "license": "MIT",
   "scripts": {
     "build": "tsc --build tsconfig.json",
-    "start": "node --enable-source-maps --trace-warnings dist/index.js",
+    "start": "node --enable-source-maps --trace-warnings dist/src/index.js",
     "dev": "yarn build && yarn start",
     "watch": "nodemon",
     "test": "jest",
-    "migrate": "node dist/migrate.js"
+    "migrate": "node dist/src/migrate.js"
   },
   "devDependencies": {
     "@types/node": "^16.6.1",
+    "@types/pg": "^8.6.5",
     "east": "^2.0.3",
     "esbuild": "^0.14.32",
     "jest": "^27.4.5",
