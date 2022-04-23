@@ -54,7 +54,7 @@ To run and develop the bot:
  The `./scripts/dev-entrypoint.sh` automates most of this process.
 
 # Configuration
-Environment variables are used to provide all configuration values. See the `Config` class field documentation comments in [`config.ts`](./src/config.ts) for names of associated environment variables and their purposes.
+Environment variables are used to provide all configuration values. See the `EnvConfig` field `@envConfig` annotations in [`config.ts`](./src/config.ts) for names of associated environment variables.
 
 The `.env` file is expected to have configuration values. This file is ignored by Git as some values are secret. 
 
