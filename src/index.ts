@@ -20,7 +20,7 @@ async function main() {
   const discordAdapter = new DiscordAdapter({
     config: cfg.discord,
     roleListManager: new RoleListManagerImpl({
-      roleListRepo: new PGRoleListRepository(cfg.postgres),
+      roleListRepo: new PGRoleListRepository(),
     }),
   });
   
