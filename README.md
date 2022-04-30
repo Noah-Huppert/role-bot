@@ -26,6 +26,7 @@ To run and develop the bot:
    ./scripts/dev.sh shell=
    # Next command inside the container shell
    yarn migrate
+   yarn pg-types
    ```
 
 ## Manual Steps
@@ -46,7 +47,11 @@ To run and develop the bot:
    ```shell
    yarn migrate
    ```
-5. Start development watch server:
+5. Generate types from the Postgres database:
+   ```shell
+   yarn pg-types
+   ```
+6. Start development watch server:
    ```shell
    yarn watch
    ```
