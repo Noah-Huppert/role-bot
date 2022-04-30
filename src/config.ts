@@ -126,7 +126,7 @@ export class EnvConfig extends EnvVarErrorTracker implements Config {
         host: "",
         port: 0,
         database: "",
-        username: "",
+        user: "",
         password: "",
         pgURI: () => "",
       });
@@ -228,7 +228,7 @@ export interface PostgresConfig {
   /**
    * Name of user used to authenticate with the database.
    */
-  username: string;
+  user: string;
 
   /**
    * Password used to authenticate with the database.
@@ -266,8 +266,8 @@ export class EnvPostgresConfig extends EnvVarErrorTracker implements PostgresCon
   /**
    * {@link PostgresConfig.username}
    */
-  @envVar({ name: "ROLE_BOT_POSTGRES_USERNAME", default: "devrolebot" })
-  username: string;
+  @envVar({ name: "ROLE_BOT_POSTGRES_USER", default: "devrolebot" })
+  user: string;
 
   /**
    * {@link PostgresConfig.password}
@@ -286,7 +286,7 @@ export class EnvPostgresConfig extends EnvVarErrorTracker implements PostgresCon
     this.host = this.retrieveField("host").asString();
     this.port = this.retrieveField("port").asNumber();
     this.database = this.retrieveField("database").asString();
-    this.username = this.retrieveField("username").asString();
+    this.user = this.retrieveField("user").asString();
     this.password = this.retrieveField("password").asString();
     
     this.ensureNoErrors();
@@ -296,7 +296,7 @@ export class EnvPostgresConfig extends EnvVarErrorTracker implements PostgresCon
    * {@link PostgresConfig.pgURI}
    */
   pgURI(): string {
-    const uri = new URL("", `postgres://${this.username}@${this.host}:${this.port}/${this.database}`);
+    const uri = new URL("", `postgres://${this.user}@${this.host}:${this.port}/${this.database}`);
 
     if (this.password) {
       uri.password = this.password;
