@@ -34,7 +34,6 @@
     "discord.js": "^13.1.0",
     "east-postgres": "^1.0.2",
     "pg": "^8.7.3",
-    "ts-postgres": "^1.2.1",
     "ts-results": "^3.3.0"
   }
 }
