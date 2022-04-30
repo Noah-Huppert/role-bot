@@ -1,4 +1,12 @@
+# Typescript build
 dist/
+src/pg/zapatos
+
+# Node log files
 *.log
+
+# Node dependencies
 node_modules/
+
+# Configuration
 .env
