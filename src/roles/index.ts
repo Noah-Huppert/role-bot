@@ -6,7 +6,6 @@ import {
   Some,
   None,
 } from "ts-results";
-import { Client as PGClient } from "ts-postgres";
 
 import { PostgresConfig } from "../config";
 
@@ -135,45 +134,59 @@ export class PGRoleListRepository implements RoleListRepository {
   cfg: PostgresConfig;
 
   /**
-   * The database connection. Singleton which should be accessed via db.
-   */
-  _db: Option<PGClient>;
-
-  /**
    * Initializes a PGRoleListRepository.
    * @param cfg - {@link cfg}
    */
   constructor(cfg: PostgresConfig) {
     this.cfg = cfg;
-    this._db = None;
   }
-
-  /**
-   * Access the db singleton. Creates a database connection if not already made.
-   * @returns Promise which resolves with database client.
-   */
-  async db(): Promise<PGClient> {
-    if (this._db.some) {
-      // Database client already made
-      return this._db.val;
-    } else {
-      // No database connection yet, create one and save
-      const db = new PGClient({
-        ...this.cfg,
-      });
-
-      this._db = Some(db);
-
-      return db;
-    }
-  }
-  
   
   async listRoleLists(roleListIDs: string[] | null): Promise<Result<RoleList[], string>> {
+//     const db = await this.db();
+
+//     // Determine if getting specific role lists or all of them
+//     const query = (() => {
+//       if (roleListIDs === null) {
+//         // Getting all role lists
+//         return new PGQuery("SELECT id, name, description FROM role_list");
+//       } else {
+//         // Getting specific role lists
+//         return new PGQuery(`
+// SELECT id, name, description 
+// FROM role_list
+// WHERE id IN $1`, [roleListIDs]);
+//       }
+//     })();
+
+//     // Map results
+//     const res = await db.execute(query);
+//     const roleLists = [...res].map((row) => {
+//       console.log(row);
+//       // return {
+//       //   id: row.get<number>("id")!,
+//       //   name: row.get<string>("name")!,
+//       //   description: row.get<string>("description")!,
+//       // };
+//     });
+
     return Ok([]);
   }
 
   async createRoleList(roleList: RoleList): Promise<Result<RoleList, string>> {
+    // const db = await this.db();
+    
+    // const query = new PGQuery("INSERT INTO role_list (name, description) VALUES ($1, $2) RETURNING id",
+    //                           [roleList.name, roleList.description]);
+
+    // const res = await db.execute(query);
+    // if (res.rows.length !== 1) {
+    //   return Err(`Expected 1 row returned by insert query, got: ${res.rows.length}`);
+    // }
+
+    // return Ok({
+    //   ...roleList,
+    //   id: res.rows[0].id
+    // });
     return Ok(roleList);
   }
 
