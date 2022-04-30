@@ -159,7 +159,7 @@ action_shell() { # ( action_spec )
   else
     # Service is not running, create temporary execution container
     log "For shell '$svc' '$cmd' the Docker compose service was not running, created a temporary execution container"
-    run_check "docker-compose run $svc $cmd" "$EXIT_CODE_ARG_ACTION_SHELL_RUN" "$EXIT_MSG_ARG_ACTION_SHELL_RUN"
+    run_check "docker-compose run --rm $svc $cmd" "$EXIT_CODE_ARG_ACTION_SHELL_RUN" "$EXIT_MSG_ARG_ACTION_SHELL_RUN"
   fi
 }
 
