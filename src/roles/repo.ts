@@ -11,6 +11,7 @@ import {
   RoleList,
   RoleListRole,
 } from "./models";
+import { db } from "../pg";
 
 /**
  * Stores and retrieves roles.
@@ -44,6 +45,7 @@ export interface RoleListRepository {
  */
 export class PGRoleListRepository implements RoleListRepository {
   async listRoleLists(roleListIDs: string[] | null): Promise<Result<RoleList[], string>> {
+    console.log(db);
 //     const db = await this.db();
 
 //     // Determine if getting specific role lists or all of them
