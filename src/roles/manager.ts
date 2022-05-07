@@ -84,7 +84,6 @@ export class RoleListManagerImpl implements RoleListManager {
     }
 
     // Combine results
-    console.log("RoleListManagerImpl, listRoleLists: countRolesRes=", countRolesRes.val);
     return Ok(listRolesRes.val.map((roleList) => {
       return {
         ...roleList,

@@ -31,7 +31,7 @@ export interface RoleListRepository {
   /**
    * Counts the number of roles which are part of each role list.
    * @param roleListIDs - IDs of role lists for which to get role counts, or null to retrieve for all role lists.
-   * @returns A count of the roles for each role list.
+   * @returns A count of the roles for each role list. If a list does not have any roles then its key in the result will be undefined.
    */
   countRolesForRoleLists(roleListIDs: string[] | null): Promise<Result<RoleListRoleCounts, string>>;
 
