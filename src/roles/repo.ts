@@ -11,7 +11,11 @@ import {
   RoleList,
   RoleListRole,
 } from "./models";
-import { db } from "../pg";
+import {
+  db,
+  pool,
+  schema,
+} from "../pg";
 
 /**
  * Stores and retrieves roles.
@@ -45,34 +49,22 @@ export interface RoleListRepository {
  */
 export class PGRoleListRepository implements RoleListRepository {
   async listRoleLists(roleListIDs: string[] | null): Promise<Result<RoleList[], string>> {
-    console.log(db);
-//     const db = await this.db();
+    // Determine if getting specific role lists or all of them
+    const query = (() => {
+      if (roleListIDs === null) {
+        // Getting all role lists
+        return db.sql<schema.role_list.SQL, schema.role_list.Selectable[]>`SELECT id, name, description FROM role_list`;
+      } else {
+        // Getting specific role lists
+        return db.sql<db.ColumnValues<string[]>, schema.role_list.Selectable[]>`
+SELECT id, name, description 
+FROM role_list
+WHERE id IN ${db.vals(roleListIDs)}`;
+      }
+    })();
 
-//     // Determine if getting specific role lists or all of them
-//     const query = (() => {
-//       if (roleListIDs === null) {
-//         // Getting all role lists
-//         return new PGQuery("SELECT id, name, description FROM role_list");
-//       } else {
-//         // Getting specific role lists
-//         return new PGQuery(`
-// SELECT id, name, description 
-// FROM role_list
-// WHERE id IN $1`, [roleListIDs]);
-//       }
-//     })();
-
-//     // Map results
-//     const res = await db.execute(query);
-//     const roleLists = [...res].map((row) => {
-//       console.log(row);
-//       // return {
-//       //   id: row.get<number>("id")!,
-//       //   name: row.get<string>("name")!,
-//       //   description: row.get<string>("description")!,
-//       // };
-//     });
-
+    const res = await query.run(pool);
+    console.log(res);
     return Ok([]);
   }
 
