@@ -29,9 +29,19 @@ export interface RoleListManager {
 }
 
 /**
+ * Provides an overview of a role list.
+ */
+export type RoleListSummary = RoleList & {
+  /**
+   * The number of roles the list contains.
+   */
+  numberRoles: number;
+};
+
+/**
  * Result of the list role lists operation.
  */
-export type ListRoleListsResult = Result<RoleList[], string>;
+export type ListRoleListsResult = Result<RoleListSummary[], string>;
 
 /**
  * Result of a role list creation attempt.
@@ -57,17 +67,30 @@ export class RoleListManagerImpl implements RoleListManager {
   }
 
   async listRoleLists(): Promise<ListRoleListsResult> {
-    const res = await this.roleListRepo.listRoleLists(null);
-
-    // Error
-    if (!res.ok) {
-      console.error("Failed to list role lists, repository error: ", res.val);
+    // Get role lists
+    const listRolesRes = await this.roleListRepo.listRoleLists(null);
+    if (!listRolesRes.ok) {
+      console.error("Failed to list role lists, repository error: ", listRolesRes.val);
       
       return Err("Failed to retrieve role lists.");
     }
 
-    // Success
-    return Ok(res.val);
+    // Get role counts
+    const countRolesRes = await this.roleListRepo.countRolesForRoleLists(null);
+    if (!countRolesRes.ok) {
+      console.error("Failed to get role counts for role lists, repository error: ", countRolesRes.val);
+
+      return Err("Failed to retrieve count of roles for each role list.");
+    }
+
+    // Combine results
+    console.log("RoleListManagerImpl, listRoleLists: countRolesRes=", countRolesRes.val);
+    return Ok(listRolesRes.val.map((roleList) => {
+      return {
+        ...roleList,
+        numberRoles: countRolesRes.val[roleList.id] || 0,
+      };
+    }));
   }
 
   async createRoleList(roleList: RoleList): Promise<CreateRoleListResult> {

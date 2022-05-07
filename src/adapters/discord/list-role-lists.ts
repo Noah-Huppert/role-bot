@@ -84,19 +84,25 @@ class ListRoleListsHandler {
         });
       } else {
         await cmd.reply({
-          embeds: [
-            {
-              title: "Role Lists",
+          content: "**Role Lists:**",
+          embeds: roleLists.map((roleList) => {
+            return {
+              title: `:scroll: ${roleList.name}`,
               color: COLORS.success,
-              fields: roleLists.map((roleList) => {
-                return {
-                  name: roleList.name,
+              fields: [
+                {
+                  name: "Description",
                   value: roleList.description,
                   inline: true,
-                };
-              }),
-            }
-          ],
+                },
+                {
+                  name: "Roles",
+                  value: `${roleList.numberRoles} roles`,
+                  inline: true,
+                },
+              ],
+            };
+          }),
         });
       }
     } else {
