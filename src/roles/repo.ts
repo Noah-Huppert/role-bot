@@ -29,11 +29,11 @@ export interface RoleListRepository {
   listRoleLists(roleListIDs: string[] | null): Promise<Result<RoleList[], string>>;
 
   /**
-   * Counts the number of roles which are part of each role list.
-   * @param roleListIDs - IDs of role lists for which to get role counts, or null to retrieve for all role lists.
-   * @returns A count of the roles for each role list. If a list does not have any roles then its key in the result will be undefined.
+   * Gets role lists and a summary of associated information.
+   * @param roleListIDs - IDs of role lists for which to get, or null to retrieve all role lists.
+   * @returns A summary of the specified role lists.
    */
-  countRolesForRoleLists(roleListIDs: string[] | null): Promise<Result<RoleListRoleCounts, string>>;
+  summarizeRoleLists(roleListIDs: string[] | null): Promise<Result<RoleListSummary[], string>>;
 
   /**
    * Store a new role list.
@@ -51,11 +51,14 @@ export interface RoleListRepository {
 }
 
 /**
- * Count of the number of roles in each role list.
- * Keys are role list IDs.
- * Values are counts of roles in that role list.
+ * Provides an overview of a role list.
  */
-export type RoleListRoleCounts = { [key: string]: number };
+export type RoleListSummary = RoleList & {
+  /**
+   * The number of roles the list contains.
+   */
+  numberRoles: number;
+};
 
 /**
  * RoleRepository implementation using a Postgres database.
@@ -85,41 +88,20 @@ WHERE id IN ${db.vals(roleListIDs)}`;
     }));
   }
 
-  async countRolesForRoleLists(roleListIDs: string[] | null): Promise<Result<RoleListRoleCounts, string>> {
+  async summarizeRoleLists(roleListIDs: string[] | null): Promise<Result<RoleListSummary[], string>> {
     // Determine if getting counts for specific role lists or all
-    const query = (() => {
-      if (roleListIDs === null) {
-        // Getting counts for all role lists
-        return db.sql<void, { role_list_id: number, role_count: number }[]>`
+    const query = db.sql<string, RoleListSummary[]>`
 SELECT
   role_list.id as role_list_id,
   COUNT(role_list_roles.id) as role_count
 FROM role_list
-JOIN role_list_roles ON role_list_roles.role_list_id = role_list.id
+LEFT JOIN role_list_roles ON role_list_roles.role_list_id = role_list.id
 GROUP BY role_list.id
-`;
-      } else {
-        // Getting counts for specific role lists
-        return db.sql<db.ColumnValues<string[]>, { role_list_id: number, role_count: number }[]>`
-SELECT
-  role_list.id as role_list_id,
-  COUNT(role_list_roles.id) as role_count
-FROM role_list
-JOIN role_list_roles ON role_list_roles.role_list_id = role_list.id
-WHERE role_list.id IN ${db.vals(roleListIDs)}
-GROUP BY role_list.id
-`;
-      }
-    })();
-
+WHERE ${roleListIDs !== null ? "role_list.id IN " + db.vals(roleListIDs) : "1 = 1"}`;
+    console.log(query);
     // Query
     const res = await query.run(pool);
-    const counts: RoleListRoleCounts = {};
-    res.forEach((row) => {
-      counts[row.role_list_id] = row.role_count;
-    });
-
-    return Ok(counts);
+    return Ok(res);
   }
 
   async createRoleList(roleList: RoleList): Promise<Result<RoleList, string>> {
