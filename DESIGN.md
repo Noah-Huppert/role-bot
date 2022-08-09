@@ -9,6 +9,8 @@ Outlines goals for how the role bot should be made.
 - Add and remove a set of Discord roles as a non-admin
 - Discover existing roles
 - Create new roles as an admin
+- Delete roles as an admin
+- Edit existing roles as an admin
 
 # User Experience
 Discord slash commands will be used to invoke the bot.
@@ -22,19 +24,19 @@ Additionally a message which could be placed in a server's welcome channel shoul
 
 > Assign roles to tell people what games you are interested in:
 >
-> 🏴‍☠️ Sea Of Thieves
-> 🏎️ Rocket League
-> ⚽ FIFA
-> 🏀 2K
-> 
+> 🏴‍☠️ Sea Of Thieves  
+> 🏎️ Rocket League  
+> ⚽ FIFA  
+> 🏀 2K  
+>   
 > [ Assign Roles ]
 
 When clicked a message which can only be seen by the interacting user would be sent which shows a select menu of all the possible roles with their emojis. Once the user has selected / deselected the roles they wish a button can be clicked to complete the role assignment.
 
-> Select or deselect the roles you wish to have assigned to your user:
-> 
-> | Role Select Menu |
->
+> Select or deselect the roles you wish to have assigned to your user:  
+>   
+> | Role Select Menu |  
+>  
 > [ Save Roles ]
 
 Once the user has clicked the save button the message will either: disappear, show a success message, or remain. 
@@ -48,3 +50,6 @@ Additional admin commands are made available:
 - `/role delete-assign-message <channel>`
 - `/role add <emoji> <name>`
 - `/role remove <name>`
+- `/role edit <name>`
+  - This will send a message only visible to the interacting user
+  - Will show a Discord text field component modal with a field for the emoji and a field for the role name
