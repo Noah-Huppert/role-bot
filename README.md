@@ -7,26 +7,18 @@ Discord role bot.
 - [Configuration](#configuration)
 
 # Overview
-Typescript Discord bot which assigns roles to users.
+Golang Discord bot which assigns roles to users.
 
 # Development
 ## Docker Compose
-A Docker container is provided with NodeJS and Yarn installed. Docker and Docker Compose must be installed.
+A Docker container is provided with Golang installed. Docker and Docker Compose must be installed.
 
 To run and develop the bot:
 
 1. Setup bot configuration by following the [Configuration section](#configuration) steps
 2. Start the Docker Compose stack:
    ```shell
-   ./scripts/dev.sh
-   ```
-   See `./scripts/dev.sh -h` for more advanced usage.
-3. Setup the Postgres database:
-   ```shell
-   ./scripts/dev.sh shell=
-   # Next command inside the container shell
-   yarn migrate
-   yarn pg-types
+   docker-compose up -d --build
    ```
 
 ## Manual Steps
@@ -59,7 +51,7 @@ To run and develop the bot:
  The `./scripts/dev-entrypoint.sh` automates most of this process.
 
 # Configuration
-Environment variables are used to provide all configuration values. See the `EnvConfig` field `@envConfig` annotations in [`config.ts`](./src/config.ts) for names of associated environment variables.
+Environment variables are used to provide all configuration values.
 
 The `.env` file is expected to have configuration values. This file is ignored by Git as some values are secret. 
 
