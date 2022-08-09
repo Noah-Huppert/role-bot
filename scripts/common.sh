@@ -6,7 +6,7 @@ declare -ri FALSE=1
 # Log message to stdout
 log() { # ( msg )
   local -r msg="$1"
-  echo "$(date --iso-8601=seconds) $msg"
+  echo "$(date) $msg"
 }
 
 # Log message to stderr

@@ -8,17 +8,14 @@ services:
     volumes:
       - "postgresdata:/var/lib/postgresql/data/"
     command: ["postgres", "-c", "log_statement=all"]
+    env_file: ./.env
   bot:
-    image: node:16.6.2
+    build:
+      context: ./
+      dockerfile: Dockerfile
     volumes:
       - "./:/opt/role-bot/"
-      - "bot_nodemodules:/opt/role-bot/node_modules"
-    working_dir: /opt/role-bot/
-    command: ./scripts/entrypoint-dev.sh
     restart: always
-    env_file: ./.env
 volumes:
   postgresdata:
-    driver: local
-  bot_nodemodules:
     driver: local
