@@ -12,6 +12,7 @@ Outlines goals for how the role bot should be made.
 - The [Functional Requirements](#functional-requirements) outlines the goals for the bot.
 - The [User Experience](#user-experience) section roughly outlines the features which implement the requirements.
 - The [Data Model](#data-model) section describes how data will be stored in order to back the features.
+- The [Code Architecture](#code-architecture) section describes how the code will be structured to implement the user experience.
 
 # Functional Requirements
 - Add and remove a set of Discord roles as a non-admin
