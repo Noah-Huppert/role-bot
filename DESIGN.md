@@ -2,8 +2,15 @@
 Outlines goals for how the role bot should be made.
 
 # Table Of Contents
+- [Overview](#overview)
 - [Functional Requirements](#functional-requirements)
 - [User Experience](#user-experience)
+- [Data Model](#data-model)
+
+# Overview
+- The [Functional Requirements](#functional-requirements) outlines the goals for the bot.
+- The [User Experience](#user-experience) section roughly outlines the features which implement the requirements.
+- The [Data Model](#data-model) section describes how data will be stored in order to back the features.
 
 # Functional Requirements
 - Add and remove a set of Discord roles as a non-admin
@@ -11,6 +18,7 @@ Outlines goals for how the role bot should be made.
 - Create new roles as an admin
 - Delete roles as an admin
 - Edit existing roles as an admin
+- Categorize roles by their theme
 
 # User Experience
 Role are categorized into lists which group related roles (ex., game roles vs location roles).
@@ -70,4 +78,18 @@ These commands only allow assigning to users other than yourself if you are an a
 The `<role>` and `<role list>` arguments will auto-complete.  
 Admins will be identified by an admin role specified in the bot configuration.
 
-
+# Data Model
+- Role List
+  - `id` (Integer)
+  - `name` (String)
+- Role List Role
+  - `id` (Integer)
+  - `role_list_id` (Integer, FK to Role List)
+  - `emoji` (String)
+  - `name` (String)
+  - `discord_role_id` (Integer)
+- Role List Assign Message
+  - `id` (Integer)
+  - `role_list_id` (Integer, FK to Role List)
+  - `discord_channel_id` (Integer)
+  - `description_text` (String)
