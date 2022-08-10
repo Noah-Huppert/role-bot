@@ -6,6 +6,7 @@ Outlines goals for how the role bot should be made.
 - [Functional Requirements](#functional-requirements)
 - [User Experience](#user-experience)
 - [Data Model](#data-model)
+- [Code Architecture](#code-architecture)
 
 # Overview
 - The [Functional Requirements](#functional-requirements) outlines the goals for the bot.
@@ -55,7 +56,7 @@ Additional admin commands are made available:
   - This will show a text modal which allows the list to be renamed
 - `/role-list delete <role list>`
   - This will also delete any assign messages
-- `/role-list send-assign-message <channel> [description text]`
+- `/role-list send-assign-message <role list> <channel> [description text]`
   - Only one role assignment message per channel is allowed.
 - `/role-list edit-assign-message <role list> <channel> <description text>`
 - `/role-list delete-assign-message <role list> <channel>`
@@ -93,3 +94,14 @@ Admins will be identified by an admin role specified in the bot configuration.
   - `role_list_id` (Integer, FK to Role List)
   - `discord_channel_id` (Integer)
   - `description_text` (String)
+
+# Code Architecture
+To determine a good layout for the code all the bot interactions and how they would modify Discord and database data were examined:
+
+![Diagram of the side effect each slash command and user interaction would have](./docs/actions-overview.png)
+
+From this diagram a series of interfaces were derived:
+
+![Diagram of interfaces](./docs/interface-design.png)
+
+These two diagrams' source can be found in [`docs/interface-design.drawio`](./docs/interface-design.drawio].
