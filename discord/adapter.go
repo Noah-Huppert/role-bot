@@ -39,6 +39,11 @@ const (
 	RoleUnassign = "unassign"
 )
 
+// Combine a slash command group and sub-command name into a full slash command name.
+func mkSubCmdName(group string, cmd string) string {
+	return fmt.Sprintf("%s %s", group, cmd)
+}
+
 // Interfaces with Discord to invoke bot logic.
 type DiscordAdapter struct {
 	// Logger.
@@ -89,6 +94,8 @@ func (a *DiscordAdapter) Setup() error {
 			errs = append(errs, fmt.Sprintf("failed to register command \"%s\": %s", cmd.Name, err))
 		}
 	}
+
+	a.discord.AddHandler(a.onInteractionCreate)
 
 	// Handle errors
 	if len(errs) > 0 {
@@ -161,6 +168,50 @@ func (a *DiscordAdapter) commandDefinitions() []*discordgo.ApplicationCommand {
 			},
 		}
 	*/
+}
+
+// Handles a Discord interaction creation event.
+func (a *DiscordAdapter) onInteractionCreate(_ *discordgo.Session, interaction *discordgo.InteractionCreate) {
+	// Determine slash command's name
+	var slashCmdData = interaction.ApplicationCommandData()
+	var slashCmdSubCmd = ""
+
+	for _, opt := range slashCmdData.Options {
+		if opt.Type == discordgo.ApplicationCommandOptionSubCommand {
+			slashCmdSubCmd = opt.Name
+		}
+	}
+
+	var slashCmdName = slashCmdData.Name
+	if len(slashCmdSubCmd) > 0 {
+		slashCmdName = mkSubCmdName(slashCmdName, slashCmdSubCmd)
+	}
+
+	// Determine which handler to use
+	var handleFn func(*discordgo.InteractionCreate) error = nil
+
+	switch slashCmdName {
+	case mkSubCmdName(RoleListGroup, RoleListCreate):
+		handleFn = a.onCmdRoleListCreate
+		break
+	}
+
+	// Run handler
+	if handleFn != nil {
+		a.logger.Debugf("new slash command interaction \"%s\"", slashCmdName)
+
+		if err := handleFn(interaction); err != nil {
+			a.logger.Errorf("failed to handle interaction create for slash command \"%s\": %s", slashCmdData.Name, err)
+			return
+		}
+	} else {
+		a.logger.Warnf("received new slash command interaction for command bot does not know about: %s", slashCmdName)
+	}
+}
+
+// Run when a new role list create command is received.
+func (a *DiscordAdapter) onCmdRoleListCreate(interaction *discordgo.InteractionCreate) error {
+	return nil
 }
 
 // Cleanup Discord adapter.
