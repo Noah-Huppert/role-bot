@@ -1,15 +1,18 @@
 package main
 
 import (
+	"github.com/Noah-Huppert/gointerrupt"
 	"github.com/Noah-Huppert/golog"
-	"github.com/bwmarrin/discordgo"
 
 	"github.com/Noah-Huppert/role-bot/config"
+	"github.com/Noah-Huppert/role-bot/discord"
 
-	"fmt"
+	"context"
 )
 
 func main() {
+	ctxPair := gointerrupt.NewCtxPair(context.Background())
+
 	// Logger
 	logger := golog.NewLogger("role-bot")
 
@@ -21,10 +24,27 @@ func main() {
 	}
 
 	// Discord
-	discord, err := discordgo.New(fmt.Sprintf("Bot %s", cfg.DiscordAPIToken))
+	discord, err := discord.NewDiscordAdapter(logger.GetChild("discord"), discord.DiscordConfig{
+		ClientID: cfg.DiscordClientID,
+		APIToken: cfg.DiscordAPIToken,
+		GuildID:  cfg.DiscordGuildID,
+	})
 	if err != nil {
-		logger.Fatalf("failed to create Discord client: %s", err)
+		logger.Fatalf("failed to initialized Discord adapter: %s", err)
 	}
 
-	logger.Debugf("discord=%s", discord)
+	if err = discord.Setup(); err != nil {
+		logger.Fatalf("failed to setup Discord commands: %s", err)
+	}
+
+	// Gracefully cleanup
+	defer func() {
+		if err = discord.Cleanup(); err != nil {
+			logger.Fatalf("failed to cleanup Discord adapter: %s", err)
+		}
+		logger.Info("graceful shutdown success")
+	}()
+
+	// Wait for bot to be shut down
+	<-ctxPair.Graceful().Done()
 }

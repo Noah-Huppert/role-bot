@@ -105,4 +105,14 @@ From this diagram a series of interfaces were derived:
 
 ![Diagram of interfaces](./docs/interface-design.png)
 
-These two diagrams' source can be found in [`docs/interface-design.drawio`](./docs/interface-design.drawio].
+These two diagrams' source can be found in [`docs/interface-design.drawio`](./docs/interface-design.drawio).
+
+The following code components will exist:
+
+- Discord Adapter
+- Role List Manager
+- Assign Message Manager
+- Role Manager
+- Role List Repository
+- Role Repository
+- Assign Message Repository

@@ -5,6 +5,6 @@ RUN apk add bash
 RUN mkdir -p /opt/role-bot/
 WORKDIR /opt/role-bot/
 
-RUN go install github.com/DATA-DOG/goup@latest
+RUN go install github.com/Noah-Huppert/goup@02d1736
 
 CMD ./scripts/entrypoint-dev.sh

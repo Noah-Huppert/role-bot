@@ -11,6 +11,9 @@ type Config struct {
 
 	// Discord API token.
 	DiscordAPIToken string `env:"ROLE_BOT_DISCORD_API_TOKEN"`
+
+	// Discord guild for which bot will serve commands.
+	DiscordGuildID string `env:"ROLE_BOT_DISCORD_GUILD_ID"`
 }
 
 // Load configuration from environment.
