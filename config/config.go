@@ -14,6 +14,9 @@ type Config struct {
 
 	// Discord guild for which bot will serve commands.
 	DiscordGuildID string `env:"ROLE_BOT_DISCORD_GUILD_ID"`
+
+	// Postgres database connection URI.
+	PostgresURI string `env:"ROLE_BOT_POSTGRES_URI"`
 }
 
 // Load configuration from environment.

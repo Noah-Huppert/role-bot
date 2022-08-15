@@ -6,6 +6,7 @@ import (
 
 	"github.com/Noah-Huppert/role-bot/config"
 	"github.com/Noah-Huppert/role-bot/discord"
+	"github.com/Noah-Huppert/role-bot/models"
 
 	"context"
 )
@@ -23,11 +24,25 @@ func main() {
 		logger.Fatalf("failed to load configuration: %s", err)
 	}
 
+	// Models
+	db, err := models.DBConnect(cfg.PostgresURI)
+	if err != nil {
+		logger.Fatalf("failed to connect to Postgres: %s", err)
+	}
+
+	repos := models.Repos{
+		RoleList: models.NewPGRoleListRepo(db),
+	}
+
 	// Discord
-	discord, err := discord.NewDiscordAdapter(logger.GetChild("discord"), discord.DiscordConfig{
-		ClientID: cfg.DiscordClientID,
-		APIToken: cfg.DiscordAPIToken,
-		GuildID:  cfg.DiscordGuildID,
+	discord, err := discord.NewDiscordAdapter(discord.DiscordAdapterOpts{
+		Logger: logger.GetChild("discord"),
+		Cfg: discord.DiscordConfig{
+			ClientID: cfg.DiscordClientID,
+			APIToken: cfg.DiscordAPIToken,
+			GuildID:  cfg.DiscordGuildID,
+		},
+		Repos: repos,
 	})
 	if err != nil {
 		logger.Fatalf("failed to initialized Discord adapter: %s", err)
