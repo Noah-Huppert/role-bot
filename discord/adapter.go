@@ -7,14 +7,11 @@ import (
 	"github.com/Noah-Huppert/role-bot/models"
 
 	"fmt"
-	"reflect"
 	"strings"
 )
 
-// Map of Discord slash command options. Keys are option names, values are the options.
-type InteractionOptionMap = map[string]*discordgo.ApplicationCommandInteractionDataOption
-
-var ScanInteractionNameTag = "discordOpt"
+// Name of the tag used to map struct fields to Discord slash command option names.
+var ScanInteractionNameTag = "discord"
 
 // Configures Discord.
 type DiscordConfig struct {
@@ -92,6 +89,28 @@ func NewDiscordAdapter(opts DiscordAdapterOpts) (*DiscordAdapter, error) {
 		repos:   opts.Repos,
 		discord: discord,
 	}, nil
+}
+
+// Indicates an error occurred which should be sent to the user.
+type UserError struct {
+	// Any internal error which should not be shown to the user.
+	InternalError string
+
+	// The user firendly error which should be sent to the user.
+	UserError string
+}
+
+// Implements the error interface for the UserError. This will return the non user friendly error.
+func (e UserError) Error() string {
+	return e.InternalError
+}
+
+func (e UserError) Embed() *discordgo.MessageEmbed {
+	return &discordgo.MessageEmbed{
+		Title:       "Error",
+		Description: e.UserError,
+		Color:       EmbedErrorColor,
+	}
 }
 
 // Transforms a list of command options into a map where keys are the option's .Name field. Recursive.
@@ -263,6 +282,13 @@ func (a *DiscordAdapter) onInteractionCreate(_ *discordgo.Session, interaction *
 		a.logger.Debugf("new slash command interaction \"%s\"", slashCmdName)
 
 		if err := handleFn(a.logger.GetChild(slashCmdName), interaction); err != nil {
+			if err, ok := err.(UserError); ok {
+				a.discord.InteractionRespond(
+					interaction.Interaction,
+					NewEmbedResponse([]*discordgo.MessageEmbed{
+						err.Embed(),
+					}))
+			}
 			a.logger.Errorf("failed to handle interaction create for slash command \"%s\": %s", slashCmdName, err)
 			return
 		}
@@ -271,123 +297,30 @@ func (a *DiscordAdapter) onInteractionCreate(_ *discordgo.Session, interaction *
 	}
 }
 
-// Given a slash command invocation maps option values into a struct. An error will occur if an option doesn't exist as a struct field. Not all Discord option types are supported, the types not supported are: User, Channel, role, MentionableRole, and Attachement.
-func ScanInteractionOpts(interaction *discordgo.InteractionCreate, opts interface{}) error {
-	// Organize options by name
-	optsMap := InteractionOptionMap{}
-	scannedFields := map[string]bool{}
-
-	// Get options, if sub-command get sub-command options
-	interactionData := interaction.ApplicationCommandData()
-	options := interactionData.Options
-
-	for _, opt := range options {
-		if opt.Type == discordgo.ApplicationCommandOptionSubCommand {
-			options = opt.Options
-			break
-		}
-	}
-
-	for _, opt := range options {
-		optsMap[opt.Name] = opt
-		scannedFields[opt.Name] = false
-	}
-
-	// Scan struct
-	val := reflect.ValueOf(opts).Elem()
-	if val.Kind() != reflect.Struct {
-		return fmt.Errorf("can only scan struct types, was: %s", val.Kind())
-	}
-
-	errs := []string{}
-
-	for i := 0; i < val.Type().NumField(); i++ {
-		field := val.Type().Field(i)
-		fieldName := field.Name
-
-		if tag := field.Tag.Get(ScanInteractionNameTag); len(tag) > 0 {
-			fieldName = tag
-		}
-
-		// Check option with this name exists
-		if _, optExists := optsMap[fieldName]; !optExists {
-			continue
-		}
-
-		opt := optsMap[fieldName]
-		scannedFields[fieldName] = true
-
-		// Check types match
-		structFieldType := field.Type.Kind().String()
-		optType := fmt.Sprintf("<unsupported Discord type %s>", opt.Type.String())
-
-		switch opt.Type {
-		case discordgo.ApplicationCommandOptionString:
-			optType = reflect.String.String()
-		case discordgo.ApplicationCommandOptionInteger:
-			optType = reflect.Int.String()
-		case discordgo.ApplicationCommandOptionBoolean:
-			optType = reflect.Bool.String()
-		case discordgo.ApplicationCommandOptionNumber:
-			optType = reflect.Float64.String()
-		}
-
-		if structFieldType != optType {
-			errs = append(errs, fmt.Sprintf("struct field %s has type %s but Discord option has type %s", fieldName, structFieldType, optType))
-			continue
-		}
-
-		// Set field
-		valField := val.Field(i)
-		if !valField.CanSet() {
-			errs = append(errs, fmt.Sprintf("cannot set struct field %s", fieldName))
-			continue
-		}
-
-		switch opt.Type {
-		case discordgo.ApplicationCommandOptionString:
-			valField.SetString(opt.StringValue())
-		case discordgo.ApplicationCommandOptionInteger:
-			valField.SetInt(opt.IntValue())
-		case discordgo.ApplicationCommandOptionBoolean:
-			valField.SetBool(opt.BoolValue())
-		case discordgo.ApplicationCommandOptionNumber:
-			valField.SetFloat(opt.FloatValue())
-		}
-	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf("failed to scan options into struct:\n%s", strings.Join(errs[:], "\n"))
-	}
-
-	optsNotFoundInStruct := []string{}
-	for key, scanned := range scannedFields {
-		if !scanned {
-			optsNotFoundInStruct = append(optsNotFoundInStruct, key)
-		}
-	}
-
-	if len(optsNotFoundInStruct) > 0 {
-		return fmt.Errorf("options not scanned into struct: %s", strings.Join(optsNotFoundInStruct[:], ","))
-	}
-
-	return nil
-}
-
 // Run when a new role list create command is received.
 func (a *DiscordAdapter) onCmdRoleListCreate(logger golog.Logger, interaction *discordgo.InteractionCreate) error {
+	// Parse options
 	opts := cmdRoleListCreateOpts{}
 	if err := ScanInteractionOpts(interaction, &opts); err != nil {
 		return fmt.Errorf("failed to scan interaction options: %s", err)
 	}
 
-	logger.Debugf("opts=%+v", opts)
+	// Save role list
+	// roleList, err := a.repos.RoleList.Create(models.CreateRoleListOpts{
+	// 	Name: opts.Name,
+	// })
+	// if err != nil {
+	//   return
+	// }
 
-	return nil
+	return UserError{
+		InternalError: "oops",
+		UserError:     "Hey whats up?",
+	}
 }
 
 type cmdRoleListCreateOpts struct {
-	Name string `discordOpt:"name"`
+	Name string `discord:"name"`
 }
 
 // Cleanup Discord adapter.
