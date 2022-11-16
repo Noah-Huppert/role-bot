@@ -1,5 +1,0 @@
-{
-  "dir": "./dist/dbmigration/",
-  "migrationExtension": "js",
-  "sourceMigrationExtension": "ts"
-}

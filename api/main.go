@@ -25,6 +25,8 @@ func main() {
 	}
 
 	// Models
+	logger.Info("connecting to database")
+
 	db, err := models.DBConnect(cfg.PostgresURI)
 	if err != nil {
 		logger.Fatalf("failed to connect to Postgres: %s", err)
@@ -34,7 +36,11 @@ func main() {
 		RoleList: models.NewPGRoleListRepo(db),
 	}
 
+	logger.Info("connected to database")
+
 	// Discord
+	logger.Info("setting up Discord")
+
 	discord, err := discord.NewDiscordAdapter(discord.DiscordAdapterOpts{
 		Logger: logger.GetChild("discord"),
 		Cfg: discord.DiscordConfig{
@@ -49,7 +55,7 @@ func main() {
 	}
 
 	if err = discord.Setup(); err != nil {
-		logger.Fatalf("failed to setup Discord commands: %s", err)
+		logger.Fatalf("failed to setup Discord: %s", err)
 	}
 
 	// Gracefully cleanup

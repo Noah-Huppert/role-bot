@@ -8,14 +8,14 @@ services:
     volumes:
       - "postgresdata:/var/lib/postgresql/data/"
     command: ["postgres", "-c", "log_statement=all"]
-  bot:
+  api:
     build:
-      context: ./
+      context: ./api
       dockerfile: Dockerfile
     volumes:
-      - "./:/opt/role-bot/"
+      - ./api:/opt/role-bot/
     restart: always
-    env_file: ./.env
+    env_file: ./api/.env
 volumes:
   postgresdata:
     driver: local
