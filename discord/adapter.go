@@ -10,9 +10,6 @@ import (
 	"strings"
 )
 
-// Name of the tag used to map struct fields to Discord slash command option names.
-var ScanInteractionNameTag = "discord"
-
 // Configures Discord.
 type DiscordConfig struct {
 	// Discord API client ID.
@@ -112,17 +109,6 @@ func (e UserError) Embed() *discordgo.MessageEmbed {
 		Color:       EmbedErrorColor,
 	}
 }
-
-// Transforms a list of command options into a map where keys are the option's .Name field. Recursive.
-// func cmdOptsToMap(opts []*discordgo.ApplicationCommandOption) map[string]*discordgo.ApplicationCommandOption {
-// 	out := map[string]*discordgo.ApplicationCommandOption{}
-
-//   for _, opt := range opts {
-//     out[opt.Name] = opt
-//   }
-
-//   return out
-// }
 
 // Sets up commands and command handlers.
 func (a *DiscordAdapter) Setup() error {

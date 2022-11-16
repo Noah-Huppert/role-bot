@@ -8,6 +8,9 @@ import (
 	"strings"
 )
 
+// Name of the tag used to map struct fields to Discord slash command option names.
+var ScanInteractionNameTag = "discord"
+
 // Given a slash command invocation maps option values into a struct. An error will occur if an option doesn't exist as a struct field. Not all Discord option types are supported, the types not supported are: User, Channel, role, MentionableRole, and Attachement.
 func ScanInteractionOpts(interaction *discordgo.InteractionCreate, opts interface{}) error {
 	// Organize options by name

@@ -25,6 +25,7 @@ Outlines goals for how the role bot should be made.
 # User Experience
 Role are categorized into lists which group related roles (ex., game roles vs location roles).
 
+## End User
 A message for each role list could be placed in a server's welcome channel. A reaction list style message will not be used due to the 50 reaction limit. Instead a message with a list of roles and their associated emojis will be display. Along with a button the user can click to trigger a more graphical role assignment process:
 
 > ### Game Roles
@@ -50,35 +51,8 @@ Once the user has clicked the save button the message will either: disappear or 
 
 The intro text of the initial role list message can be configured. This list message will also be updated as new roles get added and deleted.
 
-Additional admin commands are made available:
-
-- `/role-list create <name>`
-- `/role-list edit <role list>`
-  - This will show a text modal which allows the list to be renamed
-- `/role-list delete <role list>`
-  - This will also delete any assign messages
-- `/role-list send-assign-message <role list> <channel> [description text]`
-  - Only one role assignment message per channel is allowed.
-- `/role-list edit-assign-message <role list> <channel> <description text>`
-- `/role-list delete-assign-message <role list> <channel>`
-- `/role-list add-role <role list> <emoji> <name>`
-  - `<name>` must be an existing role
-- `/role-list create-role <role list> <emoji> <name>`
-  - Creates a Discord role and adds it to the role list
-- `/role-list remove-role <role list> <name>`
-- `/role-list edit-role <role list> <name>`
-  - This will send a message only visible to the interacting user
-  - Will show a Discord text field component modal with a field for the emoji and a field for the role name
-
-Users can also assign roles using slash commands:
-
-- `/role assign <role> [user]`
-- `/role unassign <role> [user]`
-
-These commands only allow assigning to users other than yourself if you are an admin.
-
-The `<role>` and `<role list>` arguments will auto-complete.  
-Admins will be identified by an admin role specified in the bot configuration.
+## Admin
+Administration will be completed via a web UI and not Discord slash commands. This is because the user experience would be too complex via slash commands, but would be very simple and intuitive via a website.
 
 # Data Model
 - Role List
