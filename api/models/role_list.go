@@ -15,16 +15,30 @@ type RoleList struct {
 	Name string
 }
 
+type Role struct {
+	// ID of role in Discord.
+	ExternalID string
+
+	// User facing name of role.
+	Name string
+}
+
 // Store and retrieve role lists.
 type RoleListRepo interface {
 	// Save a new role list.
-	Create(opts CreateRoleListOpts) (*RoleList, error)
+	Create(opts CreateRoleListOpts) (*RoleListInstanceRepo, error)
 }
 
 // Options for the RoleListRepo.Create operation.
 type CreateRoleListOpts struct {
 	// RoleList.Name of the new RoleList.
 	Name string
+}
+
+// Storage operations for a single instance of a role list.
+type RoleListInstanceRepo interface {
+	// List roles in role list.
+	ListRoles() ([]Role, error)
 }
 
 // Implements RoleListRepo using Postgres.
@@ -40,7 +54,7 @@ func NewPGRoleListRepo(db *sqlx.DB) *PGRoleListRepo {
 	}
 }
 
-func (r *PGRoleListRepo) Create(opts CreateRoleListOpts) (*RoleList, error) {
+func (r *PGRoleListRepo) Create(opts CreateRoleListOpts) (*RoleListInstanceRepo, error) {
 	res := r.db.QueryRowx("INSERT INTO role_list (name) VALUES (?) RETURNING id", opts.Name)
 	if res.Err() != nil {
 		return nil, fmt.Errorf("failed to run insert SQL statement: %s", res.Err())
@@ -51,8 +65,26 @@ func (r *PGRoleListRepo) Create(opts CreateRoleListOpts) (*RoleList, error) {
 		return nil, fmt.Errorf("failed to retrieve inserted ID: %s", err)
 	}
 
-	return &RoleList{
-		ID:   insertedID,
-		Name: opts.Name,
-	}, nil
+	return NewPGRoleListInstanceRepo(r.db, insertedID), null
+}
+
+// Implements RoleListInstanceRepo using Postgres.
+type PGRoleListInstanceRepo struct {
+	// Database connection.
+	db *sqlx.DB
+
+	// ID of role list for which operations will take place.
+	roleListID int
+}
+
+// Creates a new PGRoleListInstanceRepo instance.
+func NewPGRoleListInstanceRepo(db *sqlx.DB, roleListID int) *PGRoleListInstanceRepo {
+	return &PGRoleListInstanceRepo{
+		db:         db,
+		roleListID: roleListID,
+	}
+}
+
+func (r *PGRoleListInstanceRepo) ListRoles() ([]Role, error) {
+	res := r.db.QueryRowx("SELECT id, external_id FROM role_list_role WHERE role_list_id = ?")
 }
