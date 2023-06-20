@@ -11,7 +11,7 @@ services:
   api:
     build:
       context: ./api
-      dockerfile: Dockerfile
+      dockerfile: dev.Dockerfile
     volumes:
       - ./api:/opt/role-bot/
     restart: always
