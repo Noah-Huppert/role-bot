@@ -20,35 +20,9 @@ To run and develop the bot:
    ```shell
    docker-compose up -d --build
    ```
-
-## Manual Steps
-NodeJS and Yarn must be installed.
-
-To run and develop the bot:
-
-1. Install dependencies:
-   ```shell
-   yarn install
+3. Run database migrations:
    ```
-2. Setup bot configuration by following the [Configuration section](#configuration) steps
-3. Source environment variables
-   ```shell
-   source ./.env
-   ```
-4. Setup the Postgres database:
-   ```shell
-   yarn migrate
-   ```
-5. Generate types from the Postgres database:
-   ```shell
-   yarn pg-types
-   ```
-6. Start development watch server:
-   ```shell
-   yarn watch
-   ```
-   
- The `./scripts/dev-entrypoint.sh` automates most of this process.
+   docker compose run --rm api ./scripts/migrate-dev.sh
 
 # Configuration
 Environment variables are used to provide all configuration values.
