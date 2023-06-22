@@ -18,7 +18,7 @@ type RoleList struct {
 // Store and retrieve role lists.
 type RoleListRepo interface {
 	// Save a new role list.
-	Create(opts CreateRoleListOpts) (*RoleListInstanceRepo, error)
+	Create(opts CreateRoleListOpts) (RoleListInstanceRepo, error)
 }
 
 // Options for the RoleListRepo.Create operation.
@@ -29,6 +29,9 @@ type CreateRoleListOpts struct {
 
 // Storage operations for a single instance of a role list.
 type RoleListInstanceRepo interface {
+	// RoleList returns the RoleList instance for which this repo.
+	RoleList() RoleList
+
 	// List roles in role list.
 	ListRoles() ([]Role, error)
 }
@@ -57,7 +60,10 @@ func (r *PGRoleListRepo) Create(opts CreateRoleListOpts) (RoleListInstanceRepo, 
 		return nil, fmt.Errorf("failed to retrieve inserted ID: %s", err)
 	}
 
-	return NewPGRoleListInstanceRepo(r.db, insertedID), nil
+	return NewPGRoleListInstanceRepo(r.db, RoleList{
+		ID:   insertedID,
+		Name: opts.Name,
+	}), nil
 }
 
 // Implements RoleListInstanceRepo using Postgres.
@@ -65,20 +71,24 @@ type PGRoleListInstanceRepo struct {
 	// Database connection.
 	db *sqlx.DB
 
-	// ID of role list for which operations will take place.
-	roleListID int
+	// RoleList for which operations will take place.
+	roleList RoleList
 }
 
 // Creates a new PGRoleListInstanceRepo instance.
-func NewPGRoleListInstanceRepo(db *sqlx.DB, roleListID int) *PGRoleListInstanceRepo {
+func NewPGRoleListInstanceRepo(db *sqlx.DB, roleList RoleList) *PGRoleListInstanceRepo {
 	return &PGRoleListInstanceRepo{
-		db:         db,
-		roleListID: roleListID,
+		db:       db,
+		roleList: roleList,
 	}
 }
 
+func (r *PGRoleListInstanceRepo) RoleList() RoleList {
+	return r.roleList
+}
+
 func (r *PGRoleListInstanceRepo) ListRoles() ([]Role, error) {
-	res := r.db.QueryRowx("SELECT id, external_id, name FROM role_list_role WHERE role_list_id = ?", r.roleListID)
+	res := r.db.QueryRowx("SELECT id, external_id, name FROM role_list_role WHERE role_list_id = ?", r.roleList.ID)
 	if res.Err() != nil {
 		return []Role{}, fmt.Errorf("failed to query database: %s", res.Err())
 	}
