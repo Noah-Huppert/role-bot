@@ -15,14 +15,6 @@ type RoleList struct {
 	Name string
 }
 
-type Role struct {
-	// ID of role in Discord.
-	ExternalID string
-
-	// User facing name of role.
-	Name string
-}
-
 // Store and retrieve role lists.
 type RoleListRepo interface {
 	// Save a new role list.
@@ -43,7 +35,7 @@ type RoleListInstanceRepo interface {
 
 // Implements RoleListRepo using Postgres.
 type PGRoleListRepo struct {
-	// Database connection.
+	// DB is the database connection.
 	db *sqlx.DB
 }
 
@@ -54,7 +46,7 @@ func NewPGRoleListRepo(db *sqlx.DB) *PGRoleListRepo {
 	}
 }
 
-func (r *PGRoleListRepo) Create(opts CreateRoleListOpts) (*RoleListInstanceRepo, error) {
+func (r *PGRoleListRepo) Create(opts CreateRoleListOpts) (RoleListInstanceRepo, error) {
 	res := r.db.QueryRowx("INSERT INTO role_list (name) VALUES (?) RETURNING id", opts.Name)
 	if res.Err() != nil {
 		return nil, fmt.Errorf("failed to run insert SQL statement: %s", res.Err())
@@ -65,7 +57,7 @@ func (r *PGRoleListRepo) Create(opts CreateRoleListOpts) (*RoleListInstanceRepo,
 		return nil, fmt.Errorf("failed to retrieve inserted ID: %s", err)
 	}
 
-	return NewPGRoleListInstanceRepo(r.db, insertedID), null
+	return NewPGRoleListInstanceRepo(r.db, insertedID), nil
 }
 
 // Implements RoleListInstanceRepo using Postgres.
@@ -86,5 +78,15 @@ func NewPGRoleListInstanceRepo(db *sqlx.DB, roleListID int) *PGRoleListInstanceR
 }
 
 func (r *PGRoleListInstanceRepo) ListRoles() ([]Role, error) {
-	res := r.db.QueryRowx("SELECT id, external_id FROM role_list_role WHERE role_list_id = ?")
+	res := r.db.QueryRowx("SELECT id, external_id, name FROM role_list_role WHERE role_list_id = ?", r.roleListID)
+	if res.Err() != nil {
+		return []Role{}, fmt.Errorf("failed to query database: %s", res.Err())
+	}
+
+	var roles []Role
+	if err := res.Scan(&roles); err != nil {
+		return []Role{}, fmt.Errorf("failed to decode database response: %s", err)
+	}
+
+	return roles, nil
 }
