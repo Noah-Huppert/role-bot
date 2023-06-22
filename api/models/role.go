@@ -83,7 +83,6 @@ func (r *PGRoleRepo) GetByExternalID(externalID string) (*Role, error) {
 }
 
 // ExternalRoleCache cache which resolves roles which are not stored by calling an external API.
-// New roles are saved into the cache, not created via an external service.
 type ExternalRoleCache struct {
 	// Cache is the repo in which cached roles are stored.
 	cache RoleRepo
@@ -109,9 +108,24 @@ type NewExternalRoleCacheOpts struct {
 	External RoleRepo
 }
 
-// Create saves the new role in the cache.
+// Create the new role in the external service and then save in the cache.
 func (c *ExternalRoleCache) Create(opts CreateRoleOpts) (*Role, error) {
-	role, err := c.cache.Create(opts)
+	// Create in external service
+	externalOpts := CreateRoleOpts{
+		ExternalID: "",
+		Name:       opts.Name,
+	}
+	externalRole, err := c.external.Create(externalOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create new role via external service: %s", err)
+	}
+
+	// Save in cache
+	cacheOpts := CreateRoleOpts{
+		ExternalID: externalRole.ExternalID,
+		Name:       opts.Name,
+	}
+	role, err := c.cache.Create(cacheOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to save new role in cache: %s", err)
 	}

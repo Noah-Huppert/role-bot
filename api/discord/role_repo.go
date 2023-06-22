@@ -16,6 +16,23 @@ type DiscordRoleRepo struct {
 	guildID string
 }
 
+// NewDiscordRoleRepo creates a new DiscordRoleRepo.
+func NewDiscordRoleRepo(opts NewDiscordRoleRepoOpts) *DiscordRoleRepo {
+	return &DiscordRoleRepo{
+		discord: opts.Discord,
+		guildID: opts.GuildID,
+	}
+}
+
+// NewDiscordRoleRepoOpts are options to create a new DiscordRoleRepo.
+type NewDiscordRoleRepoOpts struct {
+	// Discord API client.
+	Discord *discordgo.Session
+
+	// GuildID in which roles will be created and retrieved.
+	GuildID string
+}
+
 // Create makes a new role in a Discord server.
 // ExternalID cannot be set when calling this method, as we do not get to pick the external ID, discord does. Instead determine ExternalID from return value.
 // The return value's ID field will not be set.
@@ -40,5 +57,24 @@ func (r *DiscordRoleRepo) Create(opts models.CreateRoleOpts) (*models.Role, erro
 		ID:         0,
 		ExternalID: externalRole.ID,
 		Name:       opts.Name,
+	}, nil
+}
+
+// GetByExternalID finds a role based on its DiscordID.
+// The return value's ID field will not be set.
+func (r *DiscordRoleRepo) GetByExternalID(externalID string) (*models.Role, error) {
+	role, err := r.discord.State.Role(r.guildID, externalID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get role from Discord: %s", err)
+	}
+
+	if role == nil {
+		return nil, nil
+	}
+
+	return &models.Role{
+		ID:         0,
+		ExternalID: externalID,
+		Name:       role.Name,
 	}, nil
 }

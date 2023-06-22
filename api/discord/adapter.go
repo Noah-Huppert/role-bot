@@ -44,6 +44,9 @@ type DiscordAdapter struct {
 	// Model repositories.
 	repos models.Repos
 
+	// RoleCache stores and retrieves roles while caching them within the system.
+	roleCache models.ExternalRoleCache
+
 	// Discord API client.
 	discord *discordgo.Session
 }
@@ -56,9 +59,16 @@ func NewDiscordAdapter(opts DiscordAdapterOpts) (*DiscordAdapter, error) {
 	}
 
 	return &DiscordAdapter{
-		logger:  opts.Logger,
-		cfg:     opts.Cfg,
-		repos:   opts.Repos,
+		logger: opts.Logger,
+		cfg:    opts.Cfg,
+		repos:  opts.Repos,
+		roleCache: models.NewExternalRoleCache(models.NewExternalRoleCacheOpts{
+			Cache: opts.Repos.Role,
+			External: NewDiscordRoleRepo(NewDiscordRoleRepoOpts{
+				Discord: discord,
+				GuildID: opts.Cfg.GuildID,
+			}),
+		}),
 		discord: discord,
 	}, nil
 }
