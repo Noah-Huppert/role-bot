@@ -7,7 +7,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-// Queries the Discord API for RoleRepo operations.
+// DiscordRoleRepo is a models.ExternalRoleRepo which queries the Discord API.
 type DiscordRoleRepo struct {
 	// Discord API client.
 	discord *discordgo.Session
@@ -34,13 +34,7 @@ type NewDiscordRoleRepoOpts struct {
 }
 
 // Create makes a new role in a Discord server.
-// ExternalID cannot be set when calling this method, as we do not get to pick the external ID, discord does. Instead determine ExternalID from return value.
-// The return value's ID field will not be set.
-func (r *DiscordRoleRepo) Create(opts models.CreateRoleOpts) (*models.Role, error) {
-	if opts.ExternalID != "" {
-		return nil, fmt.Errorf("the ExternalID opt cannot be set as we cannot pick the new role's external ID, discord's API provides us with an external ID")
-	}
-
+func (r *DiscordRoleRepo) Create(opts models.CreateExternalRoleOpts) (*models.ExternalRole, error) {
 	// Create empty role
 	externalRole, err := r.discord.GuildRoleCreate(r.guildID)
 	if err != nil {
@@ -53,16 +47,14 @@ func (r *DiscordRoleRepo) Create(opts models.CreateRoleOpts) (*models.Role, erro
 		return nil, fmt.Errorf("failed to set fields on new role as specified: %s", err)
 	}
 
-	return &models.Role{
-		ID:         0,
+	return &models.ExternalRole{
 		ExternalID: externalRole.ID,
 		Name:       opts.Name,
 	}, nil
 }
 
 // GetByExternalID finds a role based on its DiscordID.
-// The return value's ID field will not be set.
-func (r *DiscordRoleRepo) GetByExternalID(externalID string) (*models.Role, error) {
+func (r *DiscordRoleRepo) GetByExternalID(externalID string) (*models.ExternalRole, error) {
 	role, err := r.discord.State.Role(r.guildID, externalID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get role from Discord: %s", err)
@@ -72,8 +64,7 @@ func (r *DiscordRoleRepo) GetByExternalID(externalID string) (*models.Role, erro
 		return nil, nil
 	}
 
-	return &models.Role{
-		ID:         0,
+	return &models.ExternalRole{
 		ExternalID: externalID,
 		Name:       role.Name,
 	}, nil

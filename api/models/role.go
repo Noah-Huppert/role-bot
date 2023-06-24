@@ -6,15 +6,40 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-// Discord role.
+// Role as stored by role bot.
 type Role struct {
-	// Unique identifier, internal to this system.
+	// ID is the Unique identifier of this role, internal to this system.
 	ID int
 
-	// ID of role in Discord.
+	// ExternalID is the ID of role in external service.
 	ExternalID string
 
-	// User facing name of role.
+	// Name is the user facing name of role in service.
+	Name string
+}
+
+// Information about role which is entirely external and uncontrolled by role bot.
+type ExternalRole struct {
+	// ID of role in external service.
+	ExternalID string
+
+	// User facing name of role in service.
+	Name string
+}
+
+type ExternalRoleRepo interface {
+	// Create a new role with the external service.
+	Create(opts CreateExternalRoleOpts) (*ExternalRole, error)
+
+	// GetByExternalID retrieves an external role by its external ID.
+	// Returns nil for the role if not found.
+	GetByExternalID(externalID string) (*ExternalRole, error)
+}
+
+// CreateExternalRoleOpts are the options for a new external role.
+// The ExternalID of a new role cannot be specified because the external service is the one which assigns this ID.
+type CreateExternalRoleOpts struct {
+	// User facing name of external role
 	Name string
 }
 
@@ -68,7 +93,7 @@ func (r *PGRoleRepo) Create(opts CreateRoleOpts) (*Role, error) {
 }
 
 func (r *PGRoleRepo) GetByExternalID(externalID string) (*Role, error) {
-	res := r.db.QueryRowx("SELECT id, name FROM role WHERE external_id = ?", externalID)
+	res := r.db.QueryRowx("SELECT id, external_id, name FROM role WHERE external_id = ?", externalID)
 	if res.Err() != nil {
 		return nil, fmt.Errorf("failed to query database: %s", res.Err())
 	}
@@ -78,17 +103,16 @@ func (r *PGRoleRepo) GetByExternalID(externalID string) (*Role, error) {
 		return nil, fmt.Errorf("failed to parse database response: %s", err)
 	}
 
-	role.ExternalID = externalID
 	return &role, nil
 }
 
-// ExternalRoleCache cache which resolves roles which are not stored by calling an external API.
+// ExternalRoleCache is a RoleRepo which searches in a cache for roles. If a role is not in the cache then it uses an external service to try and resolve the role. Caching the new role if it is found.
 type ExternalRoleCache struct {
 	// Cache is the repo in which cached roles are stored.
 	cache RoleRepo
 
 	// External is the service which roles are looked up in if they aren't found in the cache.
-	external RoleRepo
+	external ExternalRoleRepo
 }
 
 // NewExternalRoleCache creates a new ExternalRoleCache.
@@ -105,17 +129,13 @@ type NewExternalRoleCacheOpts struct {
 	Cache RoleRepo
 
 	// External is the RoleRepo used to query an external service for cache misses.
-	External RoleRepo
+	External ExternalRoleRepo
 }
 
 // Create the new role in the external service and then save in the cache.
-func (c *ExternalRoleCache) Create(opts CreateRoleOpts) (*Role, error) {
+func (c *ExternalRoleCache) Create(opts CreateExternalRoleOpts) (*Role, error) {
 	// Create in external service
-	externalOpts := CreateRoleOpts{
-		ExternalID: "",
-		Name:       opts.Name,
-	}
-	externalRole, err := c.external.Create(externalOpts)
+	externalRole, err := c.external.Create(opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new role via external service: %s", err)
 	}
@@ -151,6 +171,12 @@ func (c *ExternalRoleCache) GetByExternalID(externalID string) (*Role, error) {
 		return nil, fmt.Errorf("failed to lookup role in external service: %s", err)
 	}
 
+	if externalRole == nil {
+		// Not found in external service
+		return nil, nil
+	}
+
+	// If external role found, save in cache
 	savedRole, err := c.Create(CreateRoleOpts{
 		ExternalID: externalRole.ExternalID,
 		Name:       externalRole.Name,
