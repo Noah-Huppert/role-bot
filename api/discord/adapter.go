@@ -72,13 +72,22 @@ func (a *DiscordAdapter) Setup() error {
 	// Register slash commands
 	cmds, err := a.discord.ApplicationCommandBulkOverwrite(a.cfg.ClientID, a.cfg.GuildID, []*discordgo.ApplicationCommand{
 		{
-			Name:        "role-list create",
-			Description: "Create new role list",
+			Type:        discordgo.ChatApplicationCommand,
+			Name:        "role-list",
+			Description: "Role list commands",
 			Options: []*discordgo.ApplicationCommandOption{
 				{
-					Name:     "name",
-					Type:     discordgo.ApplicationCommandOptionString,
-					Required: true,
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "create",
+					Description: "Create new role list",
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Type:        discordgo.ApplicationCommandOptionString,
+							Name:        "name",
+							Description: "Name of new role list",
+							Required:    true,
+						},
+					},
 				},
 			},
 		},
