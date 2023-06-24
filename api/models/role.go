@@ -177,7 +177,7 @@ func (c *ExternalRoleCache) GetByExternalID(externalID string) (*Role, error) {
 	}
 
 	// If external role found, save in cache
-	savedRole, err := c.Create(CreateRoleOpts{
+	savedRole, err := c.cache.Create(CreateRoleOpts{
 		ExternalID: externalRole.ExternalID,
 		Name:       externalRole.Name,
 	})

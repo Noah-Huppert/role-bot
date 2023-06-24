@@ -4,7 +4,7 @@ import (
 	"github.com/Noah-Huppert/golog"
 	"github.com/bwmarrin/discordgo"
 
-	"github.com/Noah-Huppert/role-bot/models"
+	"github.com/Noah-Huppert/role-bot/services"
 
 	"fmt"
 )
@@ -14,23 +14,8 @@ type DiscordConfig struct {
 	// Discord API client ID.
 	ClientID string
 
-	// Discord API token.
-	APIToken string
-
 	// ID of guild for which server is run.
 	GuildID string
-}
-
-// DiscordAdapter creation options.
-type DiscordAdapterOpts struct {
-	// See DiscordAdapter.logger.
-	Logger golog.Logger
-
-	// See DiscordAdapter.cfg.
-	Cfg DiscordConfig
-
-	// See DiscordAdapter.Repos.
-	Repos models.Repos
 }
 
 // Interfaces with Discord to invoke bot logic.
@@ -41,74 +26,69 @@ type DiscordAdapter struct {
 	// Discord configuration.
 	cfg DiscordConfig
 
-	// Model repositories.
-	repos models.Repos
-
-	// RoleCache stores and retrieves roles while caching them within the system.
-	roleCache models.ExternalRoleCache
+	// svcs is a collection of services.
+	svcs services.Services
 
 	// Discord API client.
 	discord *discordgo.Session
 }
 
 // Creates a new DiscordAdapter.
-func NewDiscordAdapter(opts DiscordAdapterOpts) (*DiscordAdapter, error) {
-	discord, err := discordgo.New(fmt.Sprintf("Bot %s", opts.Cfg.APIToken))
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize Discord client: %s", err)
-	}
-
+func NewDiscordAdapter(opts DiscordAdapterOpts) *DiscordAdapter {
 	return &DiscordAdapter{
-		logger: opts.Logger,
-		cfg:    opts.Cfg,
-		repos:  opts.Repos,
-		roleCache: models.NewExternalRoleCache(models.NewExternalRoleCacheOpts{
-			Cache: opts.Repos.Role,
-			External: NewDiscordRoleRepo(NewDiscordRoleRepoOpts{
-				Discord: discord,
-				GuildID: opts.Cfg.GuildID,
-			}),
-		}),
-		discord: discord,
-	}, nil
+		logger:  opts.Logger,
+		cfg:     opts.Cfg,
+		svcs:    opts.Svcs,
+		discord: opts.Discord,
+	}
 }
 
-// Indicates an error occurred which should be sent to the user.
-type UserError struct {
-	// Any internal error which should not be shown to the user.
-	InternalError string
+// DiscordAdapter creation options.
+type DiscordAdapterOpts struct {
+	// Logger used by DiscordAdapter.
+	Logger golog.Logger
 
-	// The user firendly error which should be sent to the user.
-	UserError string
+	// Cfg is the DiscordAdapter configuration.
+	Cfg DiscordConfig
+
+	// Svcs are services used by DiscordAdapter.
+	Svcs services.Services
+
+	// Discord client.
+	Discord *discordgo.Session
 }
 
-// Implements the error interface for the UserError. This will return the non user friendly error.
-func (e UserError) Error() string {
-	return e.InternalError
-}
-
-func (e UserError) Embed() *discordgo.MessageEmbed {
+// UserErrorEmbed creates a Discord embed from a user error.
+func UserErrorEmbed(e services.UserError) *discordgo.MessageEmbed {
 	return &discordgo.MessageEmbed{
 		Title:       "Error",
-		Description: e.UserError,
+		Description: e.UserError(),
 		Color:       EmbedErrorColor,
 	}
 }
 
 // Sets up commands and command handlers.
 func (a *DiscordAdapter) Setup() error {
-	// Connect client
-	discordReady := make(chan int)
-
-	a.discord.AddHandler(func(s *discordgo.Session, r *discordgo.Ready) {
-		discordReady <- 0
+	// Register slash commands
+	cmds, err := a.discord.ApplicationCommandBulkOverwrite(a.cfg.ClientID, a.cfg.GuildID, []*discordgo.ApplicationCommand{
+		{
+			Name:        "role-list create",
+			Description: "Create new role list",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Name:     "name",
+					Type:     discordgo.ApplicationCommandOptionString,
+					Required: true,
+				},
+			},
+		},
 	})
-
-	if err := a.discord.Open(); err != nil {
-		return fmt.Errorf("failed to connect Discord client: %s", err)
+	if err != nil {
+		return fmt.Errorf("failed to register slash commands: %s", err)
 	}
-
-	<-discordReady
+	for _, cmd := range cmds {
+		a.logger.Debugf("registered command %s", cmd.Name)
+	}
 
 	a.logger.Info("setup complete")
 

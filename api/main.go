@@ -7,6 +7,7 @@ import (
 	"github.com/Noah-Huppert/role-bot/config"
 	"github.com/Noah-Huppert/role-bot/discord"
 	"github.com/Noah-Huppert/role-bot/models"
+	"github.com/Noah-Huppert/role-bot/services"
 
 	"context"
 )
@@ -24,6 +25,14 @@ func main() {
 		logger.Fatalf("failed to load configuration: %s", err)
 	}
 
+	// Connect to Discord
+	discordRes, err := discord.NewDiscordClient(cfg.DiscordAPIToken)
+	if err != nil {
+		logger.Fatalf("failed to create Discord client: %s", err.Error())
+	}
+	logger.Debug("waiting for Discord client to connect successfully")
+	<-discordRes.Ready
+
 	// Models
 	logger.Info("connecting to database")
 
@@ -34,6 +43,19 @@ func main() {
 
 	repos := models.Repos{
 		RoleList: models.NewPGRoleListRepo(db),
+		RoleCache: models.NewExternalRoleCache(models.NewExternalRoleCacheOpts{
+			Cache: models.NewPGRoleRepo(db),
+			External: discord.NewDiscordRoleRepo(discord.NewDiscordRoleRepoOpts{
+				Discord: discordRes.Discord,
+				GuildID: cfg.DiscordGuildID,
+			}),
+		}),
+	}
+	svcs := services.Services{
+		RoleList: services.NewRoleListSvc(services.NewRoleListSvcOpts{
+			RoleListRepo: repos.RoleList,
+			RoleCache:    repos.RoleCache,
+		}),
 	}
 
 	logger.Info("connected to database")
@@ -41,18 +63,15 @@ func main() {
 	// Discord
 	logger.Info("setting up Discord")
 
-	discord, err := discord.NewDiscordAdapter(discord.DiscordAdapterOpts{
+	discord := discord.NewDiscordAdapter(discord.DiscordAdapterOpts{
 		Logger: logger.GetChild("discord"),
 		Cfg: discord.DiscordConfig{
 			ClientID: cfg.DiscordClientID,
-			APIToken: cfg.DiscordAPIToken,
 			GuildID:  cfg.DiscordGuildID,
 		},
-		Repos: repos,
+		Svcs:    svcs,
+		Discord: discordRes.Discord,
 	})
-	if err != nil {
-		logger.Fatalf("failed to initialized Discord adapter: %s", err)
-	}
 
 	if err = discord.Setup(); err != nil {
 		logger.Fatalf("failed to setup Discord: %s", err)

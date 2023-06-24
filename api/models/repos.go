@@ -5,6 +5,6 @@ type Repos struct {
 	// RoleList repository.
 	RoleList RoleListRepo
 
-	// Role repository.
-	Role RoleRepo
+	// RoleCache is the role cache.
+	RoleCache ExternalRoleCache
 }
