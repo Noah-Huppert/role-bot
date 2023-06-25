@@ -111,6 +111,28 @@ func getFullCmdName(cmd *discordgo.ApplicationCommandInteractionData, opts []*di
 	return strings.Join(subCmds, " ")
 }
 
+// getOption filters through list of Discord slash command options and finds an option by the indicated name.
+// The returned option will never be nil if error is nil, if option not found UserError returned.
+func getOption(name string, opts []*discordgo.ApplicationCommandInteractionDataOption) (*discordgo.ApplicationCommandInteractionDataOption, services.UserError) {
+	nameParts := strings.Split(name, ".")
+
+	for _, opt := range opts {
+		if opt.Name == nameParts[0] {
+			// Check if there are nested options we need to find
+			if len(nameParts) > 1 {
+				return getOption(strings.Join(nameParts[1:], "."), opt.Options)
+			}
+
+			return opt, nil
+		}
+	}
+
+	return nil, services.NewUserError().
+		UserError("The `%s` option is required", strings.Join(nameParts, " > ")).
+		InternalError("option '%s' not found", name).
+		Error()
+}
+
 // Sets up commands and command handlers.
 func (a *DiscordAdapter) Setup() error {
 	// Add slash command handler
@@ -179,12 +201,21 @@ func (a *DiscordAdapter) Setup() error {
 	return nil
 }
 
+// sendInteractionResponse tries to send a response to the Discord API. If it fails it logs an error.
+func (a *DiscordAdapter) sendInteractionResponse(interaction *discordgo.Interaction, resp *discordgo.InteractionResponse) {
+	err := a.discord.InteractionRespond(interaction, resp)
+	if err != nil {
+		a.logger.Errorf("failed to send response for interaction ID=%s: %s", interaction.ID, err)
+	}
+}
+
 // onInteractionCreate is called when a new Discord interaction is created by a user by interacting with the bot.
 // Wrapper around logic which actually handles interaction. Instead this method performs error handling.
 func (a *DiscordAdapter) onInteractionCreate(event *discordgo.InteractionCreate) {
 	err := a.handleInteraction(event)
 	if err != nil {
-		a.discord.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
+		a.logger.Errorf("failed to handle interaction ID=%s: %s", event.ID, err.InternalError())
+		a.sendInteractionResponse(event.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
 				Flags: uint64(discordgo.MessageFlagsEphemeral),
@@ -198,11 +229,11 @@ func (a *DiscordAdapter) onInteractionCreate(event *discordgo.InteractionCreate)
 }
 
 // handleInteraction calls the appropriate handler based on the interaction.
-func (a *DiscordAdapter) handleInteraction(interaction *discordgo.InteractionCreate) services.UserError {
-	switch interaction.Type {
+func (a *DiscordAdapter) handleInteraction(event *discordgo.InteractionCreate) services.UserError {
+	switch event.Type {
 	case discordgo.InteractionApplicationCommand:
 		// Find and call appropriate command handler
-		cmd := interaction.ApplicationCommandData()
+		cmd := event.ApplicationCommandData()
 		cmdName := getFullCmdName(&cmd, cmd.Options)
 
 		cmdHandlers := map[string]func(*discordgo.InteractionCreate, discordgo.ApplicationCommandInteractionData) services.UserError{
@@ -210,7 +241,7 @@ func (a *DiscordAdapter) handleInteraction(interaction *discordgo.InteractionCre
 		}
 
 		if handler, exists := cmdHandlers[cmdName]; exists {
-			return handler(interaction, cmd)
+			return handler(event, cmd)
 		} else {
 			return services.NewUserError().
 				UserError("Unknown command").
@@ -222,7 +253,7 @@ func (a *DiscordAdapter) handleInteraction(interaction *discordgo.InteractionCre
 	default:
 		return services.NewUserError().
 			UserError("Sorry, I don't know how to respond to this type of message").
-			InternalError("unknown interaction type '%s'", interaction.Type).
+			InternalError("unknown interaction type '%s'", event.Type).
 			Error()
 		break
 	}
@@ -230,7 +261,32 @@ func (a *DiscordAdapter) handleInteraction(interaction *discordgo.InteractionCre
 	return nil
 }
 
-func (a *DiscordAdapter) handleRoleListCreate(interaction *discordgo.InteractionCreate, cmd discordgo.ApplicationCommandInteractionData) services.UserError {
+// handleRoleListCreate handles a /role-list create slash command. Creates a new role list.
+func (a *DiscordAdapter) handleRoleListCreate(event *discordgo.InteractionCreate, cmd discordgo.ApplicationCommandInteractionData) services.UserError {
+	// Get options
+	nameOpt, err := getOption("create.name", cmd.Options)
+	if err != nil {
+		return err
+	}
+
+	// Create role list
+	roleList, err := a.svcs.RoleList.CreateRoleList(services.CreateRoleListOpts{
+		Name: nameOpt.StringValue(),
+	})
+	if err != nil {
+		return err
+	}
+
+	a.sendInteractionResponse(event.Interaction, NewEmbedResponse([]*discordgo.MessageEmbed{
+		{
+			Title: "Created Role List",
+			Description: fmt.Sprintf(`\
+Successfully created role list named `+fmt.Sprintf("`%s`", roleList.Name)+`
+Use the `+"`/role-list edit`"+` command to add roles to this list.
+`, roleList.Name),
+		},
+	}))
+
 	return nil
 }
 

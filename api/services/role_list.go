@@ -5,7 +5,7 @@ import "github.com/Noah-Huppert/role-bot/models"
 // IRoleListSvc defines actions for role lists.
 type IRoleListSvc interface {
 	// CreateRoleList creates a role.
-	CreateRoleList(opts CreateRoleListOpts) (models.Role, UserError)
+	CreateRoleList(opts CreateRoleListOpts) (*models.RoleList, UserError)
 }
 
 // CreateRoleListOpts are options for the role list that will be created.
@@ -40,16 +40,18 @@ func NewRoleListSvc(opts NewRoleListSvcOpts) RoleListSvc {
 	}
 }
 
-func (svc RoleListSvc) CreateRoleList(opts CreateRoleListOpts) (*models.Role, UserError) {
-	role, err := svc.roleCache.Create(models.CreateExternalRoleOpts{
+func (svc RoleListSvc) CreateRoleList(opts CreateRoleListOpts) (*models.RoleList, UserError) {
+	roleListInstance, err := svc.roleListRepo.Create(models.CreateRoleListOpts{
 		Name: opts.Name,
 	})
 	if err != nil {
 		return nil, NewUserError().
 			ErrInternalError(err).
-			UserError("failed to create role list").
+			UserError("Failed to create role list").
 			Error()
 	}
 
-	return role, nil
+	roleList := roleListInstance.RoleList()
+
+	return &roleList, nil
 }

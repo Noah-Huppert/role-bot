@@ -44,7 +44,7 @@ func NewUserError() *userErrorFactory {
 
 // UserError sets user error. Arguments same as fmt.Sprintf.
 func (e *userErrorFactory) UserError(format string, a ...any) *userErrorFactory {
-	e.userError = fmt.Sprintf(format, a)
+	e.userError = fmt.Sprintf(format, a...)
 	return e
 }
 
@@ -56,7 +56,7 @@ func (e *userErrorFactory) ErrUserError(err error) *userErrorFactory {
 
 // InternalError sets internal error. Arguments same as fmt.Sprintf.
 func (e *userErrorFactory) InternalError(format string, a ...any) *userErrorFactory {
-	e.internalError = fmt.Sprintf(format, e)
+	e.internalError = fmt.Sprintf(format, a...)
 	return e
 }
 
