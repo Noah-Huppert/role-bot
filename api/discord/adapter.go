@@ -7,6 +7,7 @@ import (
 	"github.com/Noah-Huppert/role-bot/services"
 
 	"fmt"
+	"strings"
 )
 
 // Configures Discord.
@@ -67,21 +68,56 @@ func UserErrorEmbed(e services.UserError) *discordgo.MessageEmbed {
 	}
 }
 
-/* // FlattenCmdIDs takes a list of commands and their sub-commands and returns a map where keys are command and sub-command IDs and value are
-func FlattenCmdIDs(cmds []*discordgo.ApplicationCommand) map[string]bool {
-	var ids = map[string]bool{}
+// flattenSubCmds walks a command's options to find all sub-commands.
+func flattenSubCmds(opts []*discordgo.ApplicationCommandOption) []string {
+	subCmds := []string{}
 
-	for _, cmd := range cmds {
-		ids[cmd.ID] = true
+	for _, opt := range opts {
+		if opt.Type == discordgo.ApplicationCommandOptionSubCommand {
+			subCmds = append(subCmds, opt.Name)
+		} else if opt.Type == discordgo.ApplicationCommandOptionSubCommandGroup {
+			subSubCmds := flattenSubCmds(opt.Options)
 
-		for _, opt := range cmd.Options {
-
+			for _, subSubCmd := range subSubCmds {
+				subCmds = append(subCmds, fmt.Sprintf("%s %s", opt.Name, subSubCmd))
+			}
 		}
 	}
-} */
+
+	return subCmds
+}
+
+// getFullCmdName walks a received interaction's options to get the full command name including sub-commands.
+// The first argument, cmd, can be nil to allow for recursive calls. In this case the cmd.Name field is not added to the full command name.
+func getFullCmdName(cmd *discordgo.ApplicationCommandInteractionData, opts []*discordgo.ApplicationCommandInteractionDataOption) string {
+	subCmds := []string{}
+
+	if cmd != nil {
+		subCmds = append(subCmds, cmd.Name)
+	}
+
+	for _, opt := range opts {
+		if opt.Type == discordgo.ApplicationCommandOptionSubCommand {
+			subCmds = append(subCmds, opt.Name)
+		} else if opt.Type == discordgo.ApplicationCommandOptionSubCommandGroup {
+			subSubCmds := getFullCmdName(nil, opt.Options)
+
+			if len(subSubCmds) > 0 {
+				subCmds = append(subCmds, subSubCmds)
+			}
+		}
+	}
+
+	return strings.Join(subCmds, " ")
+}
 
 // Sets up commands and command handlers.
 func (a *DiscordAdapter) Setup() error {
+	// Add slash command handler
+	a.discord.AddHandler(func(s *discordgo.Session, event *discordgo.InteractionCreate) {
+		a.onInteractionCreate(event)
+	})
+
 	// Register slash commands
 	createdCmds, err := a.discord.ApplicationCommandBulkOverwrite(a.cfg.ClientID, a.cfg.GuildID, []*discordgo.ApplicationCommand{
 		{
@@ -111,8 +147,15 @@ func (a *DiscordAdapter) Setup() error {
 	var createdCmdIDs = map[string]bool{}
 
 	for _, cmd := range createdCmds {
-		a.logger.Debugf("registered command %s (%s)", cmd.Name, cmd.ID)
+		subCmds := flattenSubCmds(cmd.Options)
+
 		createdCmdIDs[cmd.ID] = true
+
+		if len(subCmds) > 0 {
+			a.logger.Debugf("registered command '%s' with sub-command(s): %s", cmd.Name, strings.Join(subCmds, ", "))
+		} else {
+			a.logger.Debugf("registered command '%s'", cmd.Name)
+		}
 	}
 
 	// Delete an old slash commands
@@ -122,8 +165,6 @@ func (a *DiscordAdapter) Setup() error {
 	}
 
 	for _, cmd := range allCmds {
-		a.logger.Debugf("allCmd name=%s, id=%s", cmd.Name, cmd.ID)
-
 		if _, desiredCmd := createdCmdIDs[cmd.ID]; !desiredCmd {
 			if err := a.discord.ApplicationCommandDelete(a.cfg.ClientID, a.cfg.GuildID, cmd.ID); err != nil {
 				return fmt.Errorf("failed to delete old slash command named '%s': %s", cmd.Name, err)
@@ -135,6 +176,61 @@ func (a *DiscordAdapter) Setup() error {
 
 	a.logger.Info("setup complete")
 
+	return nil
+}
+
+// onInteractionCreate is called when a new Discord interaction is created by a user by interacting with the bot.
+// Wrapper around logic which actually handles interaction. Instead this method performs error handling.
+func (a *DiscordAdapter) onInteractionCreate(event *discordgo.InteractionCreate) {
+	err := a.handleInteraction(event)
+	if err != nil {
+		a.discord.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Flags: uint64(discordgo.MessageFlagsEphemeral),
+				Embeds: []*discordgo.MessageEmbed{
+					UserErrorEmbed(err),
+				},
+			},
+		})
+		return
+	}
+}
+
+// handleInteraction calls the appropriate handler based on the interaction.
+func (a *DiscordAdapter) handleInteraction(interaction *discordgo.InteractionCreate) services.UserError {
+	switch interaction.Type {
+	case discordgo.InteractionApplicationCommand:
+		// Find and call appropriate command handler
+		cmd := interaction.ApplicationCommandData()
+		cmdName := getFullCmdName(&cmd, cmd.Options)
+
+		cmdHandlers := map[string]func(*discordgo.InteractionCreate, discordgo.ApplicationCommandInteractionData) services.UserError{
+			"role-list create": a.handleRoleListCreate,
+		}
+
+		if handler, exists := cmdHandlers[cmdName]; exists {
+			return handler(interaction, cmd)
+		} else {
+			return services.NewUserError().
+				UserError("Unknown command").
+				InternalError("unknown command '%s'", cmdName).
+				Error()
+		}
+
+		break
+	default:
+		return services.NewUserError().
+			UserError("Sorry, I don't know how to respond to this type of message").
+			InternalError("unknown interaction type '%s'", interaction.Type).
+			Error()
+		break
+	}
+
+	return nil
+}
+
+func (a *DiscordAdapter) handleRoleListCreate(interaction *discordgo.InteractionCreate, cmd discordgo.ApplicationCommandInteractionData) services.UserError {
 	return nil
 }
 
