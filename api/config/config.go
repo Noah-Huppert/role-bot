@@ -7,16 +7,16 @@ import (
 // Holds application configuration.
 type Config struct {
 	// Discord API client ID.
-	DiscordClientID string `env:"ROLE_BOT_DISCORD_CLIENT_ID"`
+	DiscordClientID string `env:"ROLE_BOT_DISCORD_CLIENT_ID,required"`
 
 	// Discord API token.
-	DiscordAPIToken string `env:"ROLE_BOT_DISCORD_API_TOKEN"`
+	DiscordAPIToken string `env:"ROLE_BOT_DISCORD_API_TOKEN,required"`
 
 	// Discord guild for which bot will serve commands.
-	DiscordGuildID string `env:"ROLE_BOT_DISCORD_GUILD_ID"`
+	DiscordGuildID string `env:"ROLE_BOT_DISCORD_GUILD_ID,required"`
 
 	// Postgres database connection URI.
-	PostgresURI string `env:"ROLE_BOT_POSTGRES_URI"`
+	PostgresURI string `env:"ROLE_BOT_POSTGRES_URI,required"`
 }
 
 // Load configuration from environment.
