@@ -25,7 +25,7 @@ func main() {
 		stdLog.Fatal("failed to create logger: %s", err)
 	}
 	defer func() {
-		if err := logger.Sync(); err != nil {
+		if err := logger.Sync(); err != nil && !strings.Contains(err.Error(), "invalid argument") {
 			stdLog.Fatal("failed to sync logger output: %s", err)
 		}
 	}()
