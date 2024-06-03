@@ -1,8 +1,8 @@
 package discord
 
 import (
-	"github.com/Noah-Huppert/golog"
 	"github.com/bwmarrin/discordgo"
+	"go.uber.org/zap"
 
 	"github.com/Noah-Huppert/role-bot/services"
 
@@ -22,7 +22,7 @@ type DiscordConfig struct {
 // Interfaces with Discord to invoke bot logic.
 type DiscordAdapter struct {
 	// Logger.
-	logger golog.Logger
+	logger *zap.Logger
 
 	// Discord configuration.
 	cfg DiscordConfig
@@ -47,7 +47,7 @@ func NewDiscordAdapter(opts DiscordAdapterOpts) *DiscordAdapter {
 // DiscordAdapter creation options.
 type DiscordAdapterOpts struct {
 	// Logger used by DiscordAdapter.
-	Logger golog.Logger
+	Logger *zap.Logger
 
 	// Cfg is the DiscordAdapter configuration.
 	Cfg DiscordConfig
@@ -174,9 +174,9 @@ func (a *DiscordAdapter) Setup() error {
 		createdCmdIDs[cmd.ID] = true
 
 		if len(subCmds) > 0 {
-			a.logger.Debugf("registered command '%s' with sub-command(s): %s", cmd.Name, strings.Join(subCmds, ", "))
+			a.logger.Debug("registered command with sub-command(s)", zap.String("command_name", cmd.Name), zap.Strings("sub_commands", subCmds))
 		} else {
-			a.logger.Debugf("registered command '%s'", cmd.Name)
+			a.logger.Debug("registered command", zap.String("command_name", cmd.Name))
 		}
 	}
 
@@ -191,7 +191,7 @@ func (a *DiscordAdapter) Setup() error {
 			if err := a.discord.ApplicationCommandDelete(a.cfg.ClientID, a.cfg.GuildID, cmd.ID); err != nil {
 				return fmt.Errorf("failed to delete old slash command named '%s': %s", cmd.Name, err)
 			} else {
-				a.logger.Debugf("deleted old command %s", cmd.Name)
+				a.logger.Debug("deleted old command", zap.String("command_name", cmd.Name))
 			}
 		}
 	}
@@ -205,7 +205,7 @@ func (a *DiscordAdapter) Setup() error {
 func (a *DiscordAdapter) sendInteractionResponse(interaction *discordgo.Interaction, resp *discordgo.InteractionResponse) {
 	err := a.discord.InteractionRespond(interaction, resp)
 	if err != nil {
-		a.logger.Errorf("failed to send response for interaction ID=%s: %s", interaction.ID, err)
+		a.logger.Error("failed to send response for interaction", zap.String("interaction_id", interaction.ID), zap.Error(err))
 	}
 }
 
@@ -214,7 +214,7 @@ func (a *DiscordAdapter) sendInteractionResponse(interaction *discordgo.Interact
 func (a *DiscordAdapter) onInteractionCreate(event *discordgo.InteractionCreate) {
 	err := a.handleInteraction(event)
 	if err != nil {
-		a.logger.Errorf("failed to handle interaction ID=%s: %s", event.ID, err.InternalError())
+		a.logger.Error("failed to send response for interaction", zap.String("interaction_id", event.ID), zap.String("error", err.InternalError()))
 		a.sendInteractionResponse(event.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
@@ -281,7 +281,7 @@ func (a *DiscordAdapter) handleRoleListCreate(event *discordgo.InteractionCreate
 		{
 			Title: "Created Role List",
 			Description: fmt.Sprintf(`\
-Successfully created role list named `+fmt.Sprintf("`%s`", roleList.Name)+`
+Successfully created role list named `+"`%s`"+`
 Use the `+"`/role-list edit`"+` command to add roles to this list.
 `, roleList.Name),
 		},

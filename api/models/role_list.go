@@ -50,7 +50,7 @@ func NewPGRoleListRepo(db *sqlx.DB) *PGRoleListRepo {
 }
 
 func (r *PGRoleListRepo) Create(opts CreateRoleListOpts) (RoleListInstanceRepo, error) {
-	res := r.db.QueryRowx("INSERT INTO role_list (name) VALUES (?) RETURNING id", opts.Name)
+	res := r.db.QueryRowx("INSERT INTO role_list (name) VALUES ($1) RETURNING id", opts.Name)
 	if res.Err() != nil {
 		return nil, fmt.Errorf("failed to run insert SQL statement: %s", res.Err())
 	}
