@@ -151,14 +151,15 @@ func (a *DiscordAdapter) Setup() error {
 					Type:        discordgo.ApplicationCommandOptionSubCommand,
 					Name:        "create",
 					Description: "Create new role list",
-					Options: []*discordgo.ApplicationCommandOption{
-						{
-							Type:        discordgo.ApplicationCommandOptionString,
-							Name:        "name",
-							Description: "Name of new role list",
-							Required:    true,
-						},
-					},
+					Options:     []*discordgo.ApplicationCommandOption{},
+					//Options: []*discordgo.ApplicationCommandOption{
+					//	{
+					//		Type:        discordgo.ApplicationCommandOptionString,
+					//		Name:        "name",
+					//		Description: "Name of new role list",
+					//		Required:    true,
+					//	},
+					//},
 				},
 			},
 		},
@@ -263,29 +264,48 @@ func (a *DiscordAdapter) handleInteraction(event *discordgo.InteractionCreate) s
 
 // handleRoleListCreate handles a /role-list create slash command. Creates a new role list.
 func (a *DiscordAdapter) handleRoleListCreate(event *discordgo.InteractionCreate, cmd discordgo.ApplicationCommandInteractionData) services.UserError {
-	// Get options
-	nameOpt, err := getOption("create.name", cmd.Options)
-	if err != nil {
-		return err
-	}
-
-	// Create role list
-	roleList, err := a.svcs.RoleList.CreateRoleList(services.CreateRoleListOpts{
-		Name: nameOpt.StringValue(),
-	})
-	if err != nil {
-		return err
-	}
-
-	a.sendInteractionResponse(event.Interaction, NewEmbedResponse([]*discordgo.MessageEmbed{
-		{
-			Title: "Created Role List",
-			Description: fmt.Sprintf(`\
-Successfully created role list named `+"`%s`"+`
-Use the `+"`/role-list edit`"+` command to add roles to this list.
-`, roleList.Name),
+	a.sendInteractionResponse(event.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: "Create role list",
+			Components: []discordgo.MessageComponent{
+				discordgo.ActionsRow{
+					Components: []discordgo.MessageComponent{
+						discordgo.TextInput{
+							CustomID: "role-list.create.name",
+							Label:    "Name",
+							Style:    discordgo.TextInputShort,
+							Required: true,
+						},
+					},
+				},
+			},
 		},
-	}))
+	})
+	return nil
+	//// Get options
+	//nameOpt, err := getOption("create.name", cmd.Options)
+	//if err != nil {
+	//	return err
+	//}
+	//
+	//// Create role list
+	//roleList, err := a.svcs.RoleList.CreateRoleList(services.CreateRoleListOpts{
+	//	Name: nameOpt.StringValue(),
+	//})
+	//if err != nil {
+	//	return err
+	//}
+
+	//	a.sendInteractionResponse(event.Interaction, NewEmbedResponse([]*discordgo.MessageEmbed{
+	//		{
+	//			Title: "Created Role List",
+	//			Description: fmt.Sprintf(`\
+	//Successfully created role list named `+"`%s`"+`
+	//Use the `+"`/role-list edit`"+` command to add roles to this list.
+	//`, roleList.Name),
+	//		},
+	//	}))
 
 	return nil
 }
