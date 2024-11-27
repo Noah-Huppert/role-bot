@@ -24,7 +24,18 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = []
+dependencies = [
+  "discord.py~=2.4.0",
+  "audioop-lts~=0.2.1",
+  "pydantic-settings~=2.6.1",
+  "python-dotenv~=1.0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pip-tools~=7.4.1",
+  "hatch~=1.13.0",
+]
 
 [project.urls]
 Documentation = "https://github.com/Noah Huppert/role-bot#readme"
