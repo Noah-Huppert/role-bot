@@ -10,14 +10,6 @@ services:
     ports:
       - "5432:5432"
     command: ["postgres", "-c", "log_statement=all"]
-  api:
-    build:
-      context: ./api
-      dockerfile: dev.Dockerfile
-    volumes:
-      - ./api:/opt/role-bot/
-    restart: always
-    env_file: ./api/.env
 volumes:
   postgresdata:
     driver: local
