@@ -14,6 +14,9 @@ class Config(BaseSettings):
     guild_id: int
     """IDs of guild (server) that bot will respond in"""
 
+    db_uri: str = "postgresql://devrolebot:devrolebot@localhost/devrolebot"
+    """URI for database"""
+
 # Load settings
 load_dotenv()
 cfg = Config()
