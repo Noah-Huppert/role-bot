@@ -17,7 +17,16 @@ class Config(BaseSettings):
     db_uri: str = "postgresql://devrolebot:devrolebot@localhost/devrolebot"
     """URI for database"""
 
+class LoadConfigError(Exception):
+    """Failed to load configuration."""
+
+def load_config() -> Config:
+    try:
+        load_dotenv()
+        return Config()
+    except pydantic.ValidationError as e:
+        raise LoadConfigError(e) from e
+
 # Load settings
-load_dotenv()
-cfg = Config()
+cfg = load_config()
 logger.info("Loaded configuration: %s", cfg)

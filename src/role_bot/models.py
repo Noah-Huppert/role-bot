@@ -1,26 +1,23 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
-from sqlalchemy.orm import relationship, DeclarativeBase
-from sqlalchemy.orm import registry
+from sqlalchemy.orm import Mapped, mapped_column, DeclarativeBase, relationship
+from sqlalchemy import ForeignKey
 
-class RoleList(DeclarativeBase):
+class Base(DeclarativeBase):
+    pass
+
+class RoleList(Base):
     __tablename__ = 'role_list'
     
-    id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
-    description = Column(String, nullable=False)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(nullable=False)
+    description: Mapped[str] = mapped_column(nullable=False)
     
-    roles = relationship('RoleListRole', back_populates='role_list')
+    roles: Mapped[list['RoleListRole']] = relationship('RoleListRole', back_populates='role_list')
 
-class RoleListRole(DeclarativeBase):
+class RoleListRole(Base):
     __tablename__ = 'role_list_role'
     
-    id = Column(Integer, primary_key=True)
-    role_list_id = Column(Integer, ForeignKey('role_list.id'), nullable=False)
-    name = Column(String, nullable=False)
-    description = Column(String, nullable=True)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    role_list_id: Mapped[int] = mapped_column(ForeignKey('role_list.id'), nullable=False)
+    discord_role_id: Mapped[int] = mapped_column(nullable=False)
     
-    role_list = relationship('RoleList', back_populates='roles')
-    mapper_registry = registry()
-
-    mapper_registry.map_imperatively(RoleList, RoleList.__table__)
-    mapper_registry.map_imperatively(RoleListRole, RoleListRole.__table__)
+    role_list: Mapped['RoleList'] = relationship('RoleList', back_populates='roles')
