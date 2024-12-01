@@ -37,15 +37,46 @@ class RoleListService:
         with db_session as sess:
             return list(sess.query(RoleList).all())
         
-    def edit_discord_roles(
+    def rm_discord_roles(
+        self,
+        role_list: RoleList,
+        remove_discord_role_ids: Set[int],
+    ):
+        """Remove roles to role list.
+        
+        :return: Removed discord role IDs
+        """
+        with db_session as sess:
+            sess.add(role_list)
+
+            in_role_list_discord_role_ids = {
+                role_list_role.discord_role_id
+                for role_list_role in role_list.roles
+            }
+
+            # Remove roles
+            to_rm_discord_role_ids = in_role_list_discord_role_ids.intersection(remove_discord_role_ids)
+
+            role_list_roles_by_discord_role_id = {
+                role_list_role.discord_role_id: role_list_role
+                for role_list_role in role_list.roles
+            }
+            
+            for discord_role_id in to_rm_discord_role_ids:
+                role_list.roles.remove(role_list_roles_by_discord_role_id[discord_role_id])
+
+            sess.commit()
+
+            return to_rm_discord_role_ids
+        
+    def add_discord_roles(
         self,
         role_list: RoleList,
         add_discord_role_ids: Set[int],
-        remove_discord_role_ids: Set[int],
     ):
-        """Add and remove roles to role list.
+        """Add Discord roles to role list.
         
-        :return: Tuple of (added discord role IDs, removed discord role IDs)
+        :return: List of added Discord role IDs
         """
         with db_session as sess:
             sess.add(role_list)
@@ -63,20 +94,9 @@ class RoleListService:
                     discord_role_id=discord_role_id,
                 ))
 
-            # Remove roles
-            to_rm_discord_role_ids = in_role_list_discord_role_ids.intersection(remove_discord_role_ids)
-
-            role_list_roles_by_discord_role_id = {
-                role_list_role.discord_role_id: role_list_role
-                for role_list_role in role_list.roles
-            }
-            
-            for discord_role_id in to_rm_discord_role_ids:
-                role_list.roles.remove(role_list_roles_by_discord_role_id[discord_role_id])
-
             sess.commit()
 
-            return (to_add_discord_role_ids, to_rm_discord_role_ids,)
+            return to_add_discord_role_ids
 
 class NewRoleListModal(
     discord.ui.Modal,
@@ -118,19 +138,21 @@ class NewRoleListModal(
         )
         await interaction.response.send_message(embed=embed)
 
+OnSelectRoleCallback = Callable[[discord.Interaction, RoleList], Awaitable[None]]
 class RoleListSelectView(discord.ui.View):
     """Present menu to select a role list."""
 
-    _on_select_callback: Callable[[id], Awaitable[None]]
+    _role_lists: Dict[int, RoleList]
+    _on_select_callback: OnSelectRoleCallback
 
     def __init__(
         self,
-        on_select: Callable[[id], Awaitable[None]],
+        on_select: OnSelectRoleCallback,
         role_lists: List[RoleList],
     ):
         """Initialize.
         
-        :param on_select: Called when a role list is selected, argument is role list ID
+        :param on_select: Called when a role list is selected, arguments are (select interaction, role list)
         :raises ValueError: If role_lists is empty
         """
         super().__init__()
@@ -138,6 +160,11 @@ class RoleListSelectView(discord.ui.View):
 
         if len(role_lists) == 0:
             raise ValueError("Cannot provide empty list of role lists")
+        
+        self._role_lists = {
+            role_list.id: role_list
+            for role_list in role_lists
+        }
         
         self.select = discord.ui.Select(
             placeholder="Select role list",
@@ -156,12 +183,14 @@ class RoleListSelectView(discord.ui.View):
 
     async def on_select(self, interaction: discord.Interaction):
         """Run when a role list is selected."""
-        await self._on_select_callback(int(self.select.values[0]))
+        await self._on_select_callback(interaction, self._role_lists[int(self.select.values[0])])
 
 class EditRoleListRoleView(discord.ui.View):
     """Add or remove RoleListRoles from a RoleList."""
     _role_list_svc: RoleListService
     _role_list: RoleList
+
+    _roles_by_discord_id: Dict[int, discord.Role]
 
     @classmethod
     async def create(
@@ -171,8 +200,9 @@ class EditRoleListRoleView(discord.ui.View):
         target_guild: discord.Guild,
     ) -> "EditRoleListRoleView":
         """Load data required to create the view."""
+        # Get available roles in the guild
         roles_by_id = {
-            str(discord_role.id): discord_role
+            discord_role.id: discord_role
             for discord_role in target_guild.roles
         }
         guild_role_ids = set(map(lambda discord_role: discord_role.id, roles_by_id.values()))
@@ -180,7 +210,8 @@ class EditRoleListRoleView(discord.ui.View):
         with db_session as sess:
             sess.add(role_list)
 
-            added_role_ids = set(map(lambda role_list_role: role_list_role.role_id, role_list.roles))
+            # Categorize roles into already added or not added
+            added_role_ids = set(map(lambda role_list_role: role_list_role.discord_role_id, role_list.roles))
             unadded_role_ids = guild_role_ids.difference(added_role_ids)
 
             return cls(
@@ -208,51 +239,81 @@ class EditRoleListRoleView(discord.ui.View):
         self._role_list_svc = role_list_svc
         self._role_list = role_list
 
-        self.add_roles_select = discord.ui.Select(
-            placeholder="Add roles",
-            options=[
-                discord.SelectOption(
-                    label=discord_role.name,
-                    value=str(discord_role.id),
-                )
+        self._roles_by_discord_id = {
+            **{
+                discord_role.id: discord_role
                 for discord_role in roles_to_add
-            ],
-            min_values=0,
-            max_values=min(len(roles_to_add), 25),
-        )
-        self.add_item(self.add_roles_select)
-
-        self.remove_roles_select = discord.ui.Select(
-            placeholder="Remove roles",
-            options=[
-                discord.SelectOption(
-                    label=discord_role.name,
-                    value=str(discord_role.id),
-                )
+            },
+            **{
+                discord_role.id: discord_role
                 for discord_role in roles_to_remove
-            ],
-            min_values=0,
-            max_values=min(len(roles_to_remove), 25),
-        )
-        self.add_item(self.remove_roles_select)
+            },
+        }
 
-    @discord.ui.button(label="Edit Role List")
-    async def on_edit_role_list(self, interaction: discord.Interaction):
-        to_add, to_rm = self._role_list_svc.edit_discord_roles(
+        # Show select menu to add roles
+        if len(roles_to_add) > 0:
+            self.add_roles_select = discord.ui.Select(
+                placeholder="Add roles",
+                options=[
+                    discord.SelectOption(
+                        label=discord_role.name,
+                        value=str(discord_role.id),
+                    )
+                    for discord_role in roles_to_add
+                ],
+                min_values=0,
+                max_values=min(len(roles_to_add), 25),
+            )
+            self.add_roles_select.callback = self.on_add_roles_select
+            self.add_item(self.add_roles_select)
+        else:
+            self.add_roles_select = None
+
+        # Show select menu to remove roles
+        if len(roles_to_remove) > 0:
+            self.remove_roles_select = discord.ui.Select(
+                placeholder="Remove roles",
+                options=[
+                    discord.SelectOption(
+                        label=discord_role.name,
+                        value=str(discord_role.id),
+                    )
+                    for discord_role in roles_to_remove
+                ],
+                min_values=0,
+                max_values=min(len(roles_to_remove), 25),
+            )
+            self.remove_roles_select.callback = self.on_rm_roles_select
+            self.add_item(self.remove_roles_select)
+        else:
+            self.remove_roles_select = None
+
+    async def on_add_roles_select(self, interaction: discord.Interaction):
+        self._role_list_svc.add_discord_roles(
             role_list=self._role_list,
             add_discord_role_ids={
                 int(id)
-                for id in self.add_roles_select.values
+                for id in (self.add_roles_select.values if self.add_roles_select is not None else [])
             },
+        )
+        role_names = [ f"- {self._roles_by_discord_id[int(id)].name}" for id in self.add_roles_select.values ]
+        
+        await interaction.response.send_message(content=f"""Added roles:
+{"\n".join(role_names)}""")
+       
+    async def on_rm_roles_select(self, interaction: discord.Interaction):
+        self._role_list_svc.rm_discord_roles(
+            role_list=self._role_list,
             remove_discord_role_ids={
                 int(id)
-                for id in self.remove_roles_select.values
+                for id in (self.remove_roles_select.values if self.remove_roles_select is not None else [])
             },
         )
-
-        interaction.response.send_message(
-            f"Added {len(to_add)} role(s) and removed {len(to_rm)} role(s)",
-        )
+       
+        role_names = [ f"- {self._roles_by_discord_id[int(id)].name}" for id in self.remove_roles_select.values ]
+        
+        await interaction.response.send_message(content=f"""Removed roles:
+{"\n".join(role_names)}""")
 
 class AppClient(discord.Client):
     _role_list_svc: RoleListService
@@ -304,10 +365,10 @@ class AppClient(discord.Client):
         ))
 
     async def interaction_edit_roles(self, interaction: discord.Interaction):
-        async def on_select(role_list: RoleList):
-            await interaction.response.edit_message(
-                content="Edit role list roles",
-                view=EditRoleListRoleView.create(
+        async def on_select(select_interaction: discord.Interaction, role_list: RoleList):
+            await select_interaction.response.send_message(
+                content=f"Edit '{role_list.name}' role list roles",
+                view=await EditRoleListRoleView.create(
                     role_list_svc=self._role_list_svc,
                     role_list=role_list,
                     target_guild=await self.get_target_guild(),
