@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Mapped, mapped_column, DeclarativeBase, relationship
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey, BigInteger
 
 class Base(DeclarativeBase):
     pass
@@ -18,6 +18,6 @@ class RoleListRole(Base):
     
     id: Mapped[int] = mapped_column(primary_key=True)
     role_list_id: Mapped[int] = mapped_column(ForeignKey('role_list.id'), nullable=False)
-    discord_role_id: Mapped[int] = mapped_column(nullable=False)
+    discord_role_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     
     role_list: Mapped['RoleList'] = relationship('RoleList', back_populates='roles')
