@@ -1,16 +1,25 @@
 #!/usr/bin/env python3
-from typing import Optional, Callable, Dict, Awaitable, List, Set, Tuple
+import asyncio
+from typing import Generic, Optional, Callable, Dict, Awaitable, List, Set, Tuple, TypeVar, TypedDict
 import argparse
 import logging
+from datetime import datetime
 
 import discord
-import sqlalchemy.schema
+import sqlalchemy
 
 from role_bot.config import cfg
 from role_bot.db import engine, db_session
-from role_bot.models import RoleList, RoleListRole, Base
+from role_bot.models import DiscordRole, RoleList, RoleListRole, Base
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+DISCORD_OPTIONS_MAX = 25
+"""The maximum number of options Discord allows in a select row."""
+
+DEFAULT_PAGE_SIZE = DISCORD_OPTIONS_MAX
+"""The page size used when not specified."""
 
 class RoleListService:
     """Business logic for role lists."""
@@ -18,11 +27,13 @@ class RoleListService:
     def create(
         self,
         name: str,
+        guild_id: int,
         description: str,
     ) -> RoleList:
         """Create a role list."""
         with db_session as sess:
             role_list = RoleList(
+                guild_id=guild_id,
                 name=name,
                 description=description,
             )
@@ -32,10 +43,23 @@ class RoleListService:
 
             return role_list
         
-    def list_all(self) -> List[RoleList]:
-        """Get all role lists."""
+    def list_paged(self, page: int, page_size=DEFAULT_PAGE_SIZE) -> List[RoleList]:
+        """Get all role lists in pages."""
         with db_session as sess:
-            return list(sess.query(RoleList).all())
+            return list(sess.query(
+                RoleList,
+                *RoleList.__table__.columns,
+                sqlalchemy.func.regexp_replace(RoleList.name, r'[^a-zA-Z0-9]', '').label('clean_name'),
+            )).order_by('clean_name').limit(page_size).offset(page * page_size).all()
+        
+    def list_all(self) -> List[RoleList]:
+        """List all role lists."""
+        with db_session as sess:
+            return list(sess.query(
+                RoleList,
+                *RoleList.__table__.columns,
+                sqlalchemy.func.regexp_replace(RoleList.name, r'[^a-zA-Z0-9]', '').label('clean_name'),
+            ).order_by('clean_name').all())
         
     def rm_discord_roles(
         self,
@@ -97,6 +121,88 @@ class RoleListService:
             sess.commit()
 
             return to_add_discord_role_ids
+        
+
+PageResultT = TypeVar('PageResultT')
+class LoadPageFnResult(TypedDict, Generic[PageResultT]):
+    """Result of :ref:`PaginatedSelectLoadPageFn`.
+    
+    :ivar options: The options for the page
+    :ivar results: The raw data form of the page
+    :ivar total: The total number of options
+    """
+    options: List[discord.SelectOption]
+    results: List[PageResultT]
+    total: int
+
+class PageFnResult(LoadPageFnResult):
+    """Result of :ref:`PaginatedSelect.page`.
+    
+    :ivar has_prev_page: If a previous page is available
+    :ivar has_next_page: If a next page is available
+    """
+    page: int
+    page_size: int
+    hav_prev_page: bool
+    has_next_page: bool
+
+PaginatedSelectLoadPageFn = Callable[[PageFnResult], LoadPageFnResult]
+"""Called when a specific page of options is requested.
+
+:param page: The page number to load
+:param page_size: The number of options to load
+:return: The options for that page
+"""
+
+PaginaedSelectOnNewPage = Callable[[int, int], Awaitable[None]]
+"""Called when a new page is loaded."""
+
+class PaginatedSelect(discord.ui.Select):
+    """Select menu with hook to paginate options."""
+
+    _load_page: PaginatedSelectLoadPageFn
+    _page_size: int
+    _on_new_page: Optional[PaginaedSelectOnNewPage]
+
+    def __init__(
+        self,
+        load_page: PaginatedSelectLoadPageFn,
+        on_new_page: Optional[PaginaedSelectOnNewPage] = None,
+        page_size=DEFAULT_PAGE_SIZE,
+        **kwargs,
+    ):
+        super().__init__(
+            max_values=1,
+            options=[discord.SelectOption(label="Loading...")],
+            **kwargs
+        )
+
+        self._load_page = load_page
+        self._page_size = page_size
+        self._on_new_page = on_new_page
+
+    async def page(self, page: int) -> PageFnResult:
+        """Load a specific page of options."""
+        # Load values
+        res = await self._load_page(page=page, page_size=self._page_size)
+
+        # Set options
+        self.options = res['options']
+        self.max_values = min(self._page_size, res['total'])
+        self.
+        
+        # Call handler
+        return_val = {
+            **res,
+            'page': page,
+            'page_size': self._page_size,
+            'has_prev_page': page > 0,
+            'has_next_page': res['total'] > (page + 1) * self._page_size,
+        }
+        if self._on_new_page is not None:
+            await self._on_new_page(return_val)
+
+        return return_val
 
 class NewRoleListModal(
     discord.ui.Modal,
@@ -124,19 +230,23 @@ class NewRoleListModal(
         self.add_item(self.description)
 
     async def on_submit(self, interaction: discord.Interaction):
-        role_list = await self._role_list_svc.create(
-            name=self.name.value,
-            description=self.description.value,
-        )
+        with db_session as sess:
+            role_list = self._role_list_svc.create(
+                guild_id=interaction.guild_id,
+                name=self.name.value,
+                description=self.description.value,
+            )
 
-        embed = discord.Embed(
-            title="Created Role List",
-            description=f"""
-**Name:** {role_list.name}  
-**Description:** {role_list.description}""",
-            color=discord.Color.blue(),
-        )
-        await interaction.response.send_message(embed=embed)
+            sess.add(role_list)
+
+            embed = discord.Embed(
+                title="Created Role List",
+                description=f"""
+    **Name:** {role_list.name}  
+    **Description:** {role_list.description}""",
+                color=discord.Color.blue(),
+            )
+            await interaction.response.send_message(embed=embed)
 
 OnSelectRoleCallback = Callable[[discord.Interaction, RoleList], Awaitable[None]]
 class RoleListSelectView(discord.ui.View):
@@ -162,18 +272,19 @@ class RoleListSelectView(discord.ui.View):
             raise ValueError("Cannot provide empty list of role lists")
         
         self._role_lists = {
-            role_list.id: role_list
-            for role_list in role_lists
+            one_role_list.id: one_role_list
+            for one_role_list in role_lists
         }
         
         self.select = discord.ui.Select(
             placeholder="Select role list",
             options=[
                 discord.SelectOption(
-                    label=role_list.name,
-                    value=int(role_list.id),
+                    label=one_role_list.name,
+                    value=str(one_role_list.id),
+                    description=one_role_list.description,
                 )
-                for role_list in role_lists
+                for one_role_list in role_lists
             ],
             min_values=1,
             max_values=1,
@@ -189,140 +300,200 @@ class EditRoleListRoleView(discord.ui.View):
     """Add or remove RoleListRoles from a RoleList."""
     _role_list_svc: RoleListService
     _role_list: RoleList
-
-    _roles_by_discord_id: Dict[int, discord.Role]
-
-    @classmethod
-    async def create(
-        cls,
-        role_list_svc: RoleListService,
-        role_list: RoleList,
-        target_guild: discord.Guild,
-    ) -> "EditRoleListRoleView":
-        """Load data required to create the view."""
-        # Get available roles in the guild
-        roles_by_id = {
-            discord_role.id: discord_role
-            for discord_role in target_guild.roles
-        }
-        guild_role_ids = set(map(lambda discord_role: discord_role.id, roles_by_id.values()))
-
-        with db_session as sess:
-            sess.add(role_list)
-
-            # Categorize roles into already added or not added
-            added_role_ids = set(map(lambda role_list_role: role_list_role.discord_role_id, role_list.roles))
-            unadded_role_ids = guild_role_ids.difference(added_role_ids)
-
-            return cls(
-                role_list_svc=role_list_svc,
-                role_list=role_list,
-                roles_to_add=[
-                    roles_by_id[discord_role_id]
-                    for discord_role_id in unadded_role_ids
-                ],
-                roles_to_remove=[
-                    roles_by_id[discord_role_id]
-                    for discord_role_id in added_role_ids
-                ],
-            )
+    _prev_selected: Set[int]
+    _page_discord_roles_by_id: Dict[int, DiscordRole]
+    _page_num: int
 
     def __init__(
         self,
         role_list_svc: RoleListService,
         role_list: RoleList,
-        roles_to_add: List[discord.Role],
-        roles_to_remove: List[discord.Role],
     ):
+        """Initialize. Call :ref:`prepare` after initialization to load initial data."""
         super().__init__()
 
         self._role_list_svc = role_list_svc
         self._role_list = role_list
 
-        self._roles_by_discord_id = {
+        self._prev_selected = set()
+        self._page_discord_roles_by_id = {}
+
+        self._page_num = 0
+
+        # Setup role select
+        self.roles_select = PaginatedSelect(
+            placeholder="Roles",
+            min_values=0,
+            load_page=self.load_roles_page,
+            on_new_page=self.on_new_roles_page,
+        )
+        self.roles_select.callback = self.on_roles_select
+        self.add_item(self.roles_select)
+
+        # Add pagination buttons
+        self.prev_button = discord.ui.Button(
+            label="Prev",
+            style=discord.ButtonStyle.secondary,
+        )
+        self.prev_button.callback = self.on_prev_button
+        self.add_item(self.prev_button)
+
+        self.next_button = discord.ui.Button(
+            label="Next",
+            style=discord.ButtonStyle.secondary,
+        )
+        self.next_button.callback = self.on_next_button
+        self.add_item(self.next_button)
+
+    async def prepare(self):
+        """Load initial data into view."""
+        self.roles_select.options = (await self.roles_select.page(self._page_num))['options']
+
+    async def load_roles_page(self, page: int, page_size: int) -> LoadPageFnResult[DiscordRole]:
+        """Load a page of roles."""
+        with db_session as sess:
+            base_qs = sess.query(
+                DiscordRole,
+                RoleListRole,
+            ).outerjoin(
+                RoleListRole,
+                DiscordRole.discord_role_id == RoleListRole.discord_role_id,
+            ).where(
+                DiscordRole.guild_id == self._role_list.guild_id, # to be safe
+                RoleListRole.role_list_id == self._role_list.id,
+            )
+            page_res = base_qs.limit(page_size).offset(page * page_size).all()
+
+            options = [
+                discord.SelectOption(
+                    label=discord_role.name,
+                    value=str(discord_role.id),
+                    default=role_list_role is not None,
+                )
+                for discord_role, role_list_role, in page_res
+            ]
+            self._prev_selected = len(list(map(lambda discord_role, role_list_role: role_list_role is not None, page_res)))
+
+            total = base_qs.count()
+
+            return {
+                'options': options,
+                'results': page_res,
+                'total': total,
+            }
+    
+    async def on_new_roles_page(self, page_res: PageFnResult):
+        """When a new page is loaded."""
+        self._page_discord_roles_by_id = {
+            discord_role.id: discord_role
+            for discord_role in page_res['results']
+        }
+
+        # Show or hide pagination buttons
+        self.prev_button.disabled = not page_res['has_prev_page']
+        self.next_button.disabled = not page_res['has_next_page']
+
+        # Get currently selected roles
+        def get_role_discord_id(option: discord.SelectOption) -> int:
+            return int(option.value)
+        
+        page_discord_ids = map(get_role_discord_id, page_res['options'])
+        
+        def is_selected(discord_role_id: int) -> bool:
+            return discord_role_id in page_res['options']
+        
+        selected_discord_ids = filter(is_selected, page_discord_ids)
+
+        # Store currently selected as previous
+        self._prev_selected = set(selected_discord_ids)
+
+    async def on_roles_select(self, interaction: discord.Interaction):
+        """Run when a change to role selections are made."""
+        selected_discord_role_ids = {
+            int(id)
+            for id in self.roles_select.values
+        }
+        
+        add_discord_ids = selected_discord_role_ids.difference(self._prev_selected)
+        rm_discord_ids = self._prev_selected.difference(selected_discord_role_ids)
+
+        added_discord_role_ids = self._role_list_svc.add_discord_roles(
+            role_list=self._role_list,
+            add_discord_role_ids=add_discord_ids,
+        )
+        already_added_discord_role_ids = add_discord_ids.difference(added_discord_role_ids)
+
+        rmed_discord_role_ids = self._role_list_svc.rm_discord_roles(
+            role_list=self._role_list,
+            remove_discord_role_ids=rm_discord_ids,
+        )
+        already_rmed_discord_role_ids = rm_discord_ids.difference(rmed_discord_role_ids)
+
+        add_role_names_by_id = {
+            # Added
             **{
-                discord_role.id: discord_role
-                for discord_role in roles_to_add
+                discord_role_id: f"- {self._page_discord_roles_by_id[discord_role_id].name}"
+                for discord_role_id in added_discord_role_ids
             },
+
+            # Already added
             **{
-                discord_role.id: discord_role
-                for discord_role in roles_to_remove
+                discord_role_id: f"- {self._page_discord_roles_by_id[discord_role_id].name} (Already added)"
+                for discord_role_id in already_added_discord_role_ids
             },
         }
 
-        # Show select menu to add roles
-        if len(roles_to_add) > 0:
-            self.add_roles_select = discord.ui.Select(
-                placeholder="Add roles",
-                options=[
-                    discord.SelectOption(
-                        label=discord_role.name,
-                        value=str(discord_role.id),
-                    )
-                    for discord_role in roles_to_add
-                ],
-                min_values=0,
-                max_values=min(len(roles_to_add), 25),
-            )
-            self.add_roles_select.callback = self.on_add_roles_select
-            self.add_item(self.add_roles_select)
-        else:
-            self.add_roles_select = None
-
-        # Show select menu to remove roles
-        if len(roles_to_remove) > 0:
-            self.remove_roles_select = discord.ui.Select(
-                placeholder="Remove roles",
-                options=[
-                    discord.SelectOption(
-                        label=discord_role.name,
-                        value=str(discord_role.id),
-                    )
-                    for discord_role in roles_to_remove
-                ],
-                min_values=0,
-                max_values=min(len(roles_to_remove), 25),
-            )
-            self.remove_roles_select.callback = self.on_rm_roles_select
-            self.add_item(self.remove_roles_select)
-        else:
-            self.remove_roles_select = None
-
-    async def on_add_roles_select(self, interaction: discord.Interaction):
-        self._role_list_svc.add_discord_roles(
-            role_list=self._role_list,
-            add_discord_role_ids={
-                int(id)
-                for id in (self.add_roles_select.values if self.add_roles_select is not None else [])
+        rm_role_names_by_ids = {
+            # Removed
+            **{
+                discord_role_id: f"- {self._page_discord_roles_by_id[discord_role_id].name}"
+                for discord_role_id in rmed_discord_role_ids
             },
-        )
-        role_names = [ f"- {self._roles_by_discord_id[int(id)].name}" for id in self.add_roles_select.values ]
-        
-        await interaction.response.send_message(content=f"""Added roles:
-{"\n".join(role_names)}""")
-       
-    async def on_rm_roles_select(self, interaction: discord.Interaction):
-        self._role_list_svc.rm_discord_roles(
-            role_list=self._role_list,
-            remove_discord_role_ids={
-                int(id)
-                for id in (self.remove_roles_select.values if self.remove_roles_select is not None else [])
+
+            # Already removed
+            **{
+                discord_role_id: f"- {self._page_discord_roles_by_id[discord_role_id].name} (Already removed)"
+                for discord_role_id in already_rmed_discord_role_ids
             },
-        )
-       
-        role_names = [ f"- {self._roles_by_discord_id[int(id)].name}" for id in self.remove_roles_select.values ]
+        }
         
-        await interaction.response.send_message(content=f"""Removed roles:
-{"\n".join(role_names)}""")
+        msg_parts = []
+        if len(add_role_names_by_id) > 0:
+            msg_parts.append(f"Added roles:\n{'\n'.join(add_role_names_by_id.values())}")
+        if len(rm_role_names_by_ids) > 0:
+            msg_parts.append(f"Removed roles:\n{'\n'.join(rm_role_names_by_ids.values())}")
+        
+        await interaction.response.send_message(content="\n".join(msg_parts))
+
+    def on_prev_button(self, interaction: discord.Interaction):
+        """Run when the previous button is clicked."""
+        self.roles_select.page()
+
+    def on_next_button(self, interaction: discord.Interaction):
+        """Run when the next button is clicked."""
+        pass
+
+CMD_CREATE_ROLE_LIST = "create-role-list"
+CMD_EDIT_ROLE_LIST_ROLES = "edit-roles"
 
 class AppClient(discord.Client):
+    """Bot.
+    
+    If not using :meth:`run` to serve bot interactions then you must call :meth:`wait_until_ready` before any methods.
+    """
     _role_list_svc: RoleListService
 
     _target_guild: discord.Guild
     target_guild_id: int
     _target_guild_id_obj: discord.Object
 
+    _ready_event: asyncio.Event
+
     def __init__(self, *args, target_guild_id: int, **kwargs):
+        """Initialize.
+        
+        :param target_guild_id: ID of the Discord guild for which this bot will serve
+        """
         intents = discord.Intents.default()
         #intents.message_content = True
 
@@ -336,80 +507,194 @@ class AppClient(discord.Client):
 
         self.tree = discord.app_commands.CommandTree(self)
         self.tree.command(
-            name='create-role-list',
+            name=CMD_CREATE_ROLE_LIST,
+            description="Create a new role list",
             guilds=[self._target_guild_id_obj],
         )(self.interaction_create_role_list)
         self.tree.command(
-            name='edit-roles',
+            name=CMD_EDIT_ROLE_LIST_ROLES,
+            description="Edit roles in a role list",
             guilds=[self._target_guild_id_obj],
         )(self.interaction_edit_roles)
 
+        self._ready_event = asyncio.Event()
+
     async def get_target_guild(self) -> discord.Guild:
+        """Lazy loads the target guild.
+        
+        Because it cannot be retrieved until the the client is ready.
+        """
         if self._target_guild is None:
             self._target_guild = await self.fetch_guild(self.target_guild_id)
         
         return self._target_guild
 
     async def on_ready(self):
+        """Run when the bot is done setting up."""
         logger.info("Logged in as %s", self.user)
 
         self.target_guild = await self.fetch_guild(self.target_guild_id)
 
+        self._ready_event.set()
+
+    async def wait_until_ready(self):
+        """Wait until the bot is ready."""
+        return await self._ready_event.wait()
+
     async def setup_hook(self):
+        """Run when bot is starting up, ensures commands are registered properly in the target guild."""
         await self.tree.sync(guild=self._target_guild_id_obj)
         logger.info("Synced commands to guild %s", self.target_guild_id)
 
+    class SyncRolesResult(TypedDict):
+        """Results of :meth:`sync_roles`."""
+        discord_role_ids: Set[int]
+        added_discord_role_ids: Set[int]
+        rm_discord_role_ids: Set[int]
+        renamed_discord_role_ids: Set[int]
+
+    async def sync_roles(self) -> SyncRolesResult:
+        """Ensure only roles which exist in the target guild exist in the database as :class:`DiscordRole`."""
+        with db_session as sess:
+            # Load roles IDs for DB
+            db_discord_role_ids = {
+                discord_role.discord_role_id
+                for discord_role in sess.query(DiscordRole.discord_role_id).where(DiscordRole.guild_id == self.target_guild_id).all()
+            }
+            
+            # Load roles IDs from Discord right now
+            discord_roles_by_ids = {
+                discord_role.id: discord_role
+                for discord_role in list((await self.get_target_guild()).roles)
+            }
+            """Use this list as a list of 'all discord guild roles' from now on, as it is a snapshot and makes the code more robust if roles change during the sync process."""
+
+            guild_discord_role_ids = {
+                discord_role.id
+                for discord_role in discord_roles_by_ids.values()
+            }
+
+            # Determine which roles to remove or add
+            missing_db_discord_role_ids: Set[int] = guild_discord_role_ids.difference(db_discord_role_ids)
+            to_rm_discord_role_ids: Set[int] = db_discord_role_ids.difference(guild_discord_role_ids)
+
+            # Add roles
+            for discord_role_id in missing_db_discord_role_ids:
+                sess.add(DiscordRole(
+                    name=discord_roles_by_ids[discord_role_id].name,
+                    guild_id=self.target_guild_id,
+                    discord_role_id=discord_role_id,
+                    last_synced=datetime.now(),
+                ))
+
+            # Remove roles
+            if len(to_rm_discord_role_ids) > 0:
+                sess.query(DiscordRole).filter(DiscordRole.discord_role_id.in_((list(to_rm_discord_role_ids),))).delete()
+
+            # Check names are correct
+            renamed_discord_role_ids = set()
+            for discord_role_id, discord_role in discord_roles_by_ids.items():
+                db_discord_role = sess.query(DiscordRole).where(
+                    DiscordRole.discord_role_id == discord_role_id,
+                ).one_or_none()
+
+
+                if db_discord_role.name != discord_role.name:
+                    db_discord_role.name = discord_role.name
+                    renamed_discord_role_ids.add(discord_role_id)
+                
+                db_discord_role.last_synced = datetime.now()
+
+
+            sess.commit()
+
+            return {
+                'discord_role_ids': discord_roles_by_ids.keys(),
+                'added_discord_role_ids': missing_db_discord_role_ids,
+                'rm_discord_role_ids': to_rm_discord_role_ids,
+                'renamed_discord_role_ids': renamed_discord_role_ids,
+            }
+
+
     async def interaction_create_role_list(self, interaction: discord.Interaction):
+        """Create role list slash command handler."""
         await interaction.response.send_modal(NewRoleListModal(
             role_list_svc=self._role_list_svc,
         ))
 
     async def interaction_edit_roles(self, interaction: discord.Interaction):
-        async def on_select(select_interaction: discord.Interaction, role_list: RoleList):
-            await select_interaction.response.send_message(
-                content=f"Edit '{role_list.name}' role list roles",
-                view=await EditRoleListRoleView.create(
+        """Edit roles slash command handler."""
+        async def on_role_list_select(select_interaction: discord.Interaction, role_list: RoleList):
+            """When a role list is selected show the edit roles view for that role list"""
+            view = EditRoleListRoleView(
                     role_list_svc=self._role_list_svc,
                     role_list=role_list,
-                    target_guild=await self.get_target_guild(),
-                ),
+                )
+            await view.prepare()
+            await select_interaction.response.send_message(
+                content=f"Edit '{role_list.name}' role list roles",
+                view=view,
             )
         
-        await interaction.response.send_message(
-            "Select role list to edit",
-            view=RoleListSelectView(
-                on_select=on_select,
-                role_lists=self._role_list_svc.list_all(),
-            ),
-        )
+        # Check if there are any role lists yet
+        role_lists = self._role_list_svc.list_all()
+        if len(role_lists) > 0:
+            # If role lists, ask which role list to edit
+            await interaction.response.send_message(
+                "Select role list to edit",
+                view=RoleListSelectView(
+                    on_select=on_role_list_select,
+                    role_lists=role_lists,
+                ),
+            )
+        else:
+            # If no role lists then say how to make one
+            await interaction.response.send_message(f"No role lists, use `/{CMD_CREATE_ROLE_LIST}` to create one")
 
 
-def main():
+
+async def main():
     parser = argparse.ArgumentParser(description="Role Bot")
     subparsers = parser.add_subparsers(dest="command", required=False)
 
     bot_parser = subparsers.add_parser("bot", help="Run the bot")
     migrate_parser = subparsers.add_parser("migrate", help="Run migrations")
+    sync_roles_parser = subparsers.add_parser("sync-roles", help="Sync Discord roles")
 
     args = parser.parse_args()
 
     if args.command is None or args.command == "bot":
+        # Bot
         client = AppClient(
             target_guild_id=cfg.guild_id,
         )
 
         logger.info("Starting bot")
 
-        client.run(cfg.discord_token.get_secret_value())
+        await client.start(cfg.discord_token.get_secret_value())
 
         logger.info("Bot shut down")
-    else:
+    elif args.command == "migrate":
+        # Migrate
         logger.info("Running migrations")
 
         Base.metadata.create_all(engine)
 
         logger.info("Migrations successful")
+    elif args.command == "sync-roles":
+        # Sync roles
+        logger.info("Syncing roles")
+
+        client = AppClient(
+            target_guild_id=cfg.guild_id,
+        )
+        await client.login(cfg.discord_token.get_secret_value())
+        logger.info("Logged in to Discord")
+
+        res = await client.sync_roles()
+        logger.info("Synced roles in guild %s (Added %d, Removed %d, Renamed %d)", cfg.guild_id, len(res['added_discord_role_ids']), len(res['rm_discord_role_ids']), len(res['renamed_discord_role_ids']))
 
 
 if __name__ == '__main__':
-    main()
+    logger.info("Main")
+    asyncio.run(main())
