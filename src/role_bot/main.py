@@ -4,6 +4,7 @@ from typing import Generic, Optional, Callable, Dict, Awaitable, List, Set, Tupl
 import argparse
 import logging
 from datetime import datetime
+import math
 
 import discord
 import sqlalchemy
@@ -46,20 +47,18 @@ class RoleListService:
     def list_paged(self, page: int, page_size=DEFAULT_PAGE_SIZE) -> List[RoleList]:
         """Get all role lists in pages."""
         with db_session as sess:
-            return list(sess.query(
-                RoleList,
-                *RoleList.__table__.columns,
-                sqlalchemy.func.regexp_replace(RoleList.name, r'[^a-zA-Z0-9]', '').label('clean_name'),
-            )).order_by('clean_name').limit(page_size).offset(page * page_size).all()
+            return list(sess.query(RoleList)
+                .order_by(sqlalchemy.func.regexp_replace(RoleList.name, r'[^a-zA-Z0-9]', ''))
+                .limit(page_size)
+                .offset(page * page_size)
+                .all())
         
     def list_all(self) -> List[RoleList]:
         """List all role lists."""
         with db_session as sess:
-            return list(sess.query(
-                RoleList,
-                *RoleList.__table__.columns,
-                sqlalchemy.func.regexp_replace(RoleList.name, r'[^a-zA-Z0-9]', '').label('clean_name'),
-            ).order_by('clean_name').all())
+            return list(sess.query(RoleList)
+                .order_by(sqlalchemy.func.regexp_replace(RoleList.name, r'[^a-zA-Z0-9]', ''))
+                .all())
         
     def rm_discord_roles(
         self,
@@ -194,11 +193,6 @@ class PaginatedSelect(discord.ui.Select):
         # Set options
         self.options = res['options']
         self.max_values = min(self._page_size, res['total'])
-        print({
-            'options': self.options,
-            'max_values': self.max_values,
-            'res': res,
-        })
         
         # Call handler
         return_val = {
@@ -341,15 +335,22 @@ class EditRoleListRoleView(discord.ui.View):
 
         # Add pagination buttons
         self.prev_button = discord.ui.Button(
-            label="Prev",
-            style=discord.ButtonStyle.secondary,
+            emoji="⬅️",
+            style=discord.ButtonStyle.primary,
         )
         self.prev_button.callback = self.on_prev_button
         self.add_item(self.prev_button)
 
-        self.next_button = discord.ui.Button(
-            label="Next",
+        self.page_indicator = discord.ui.Button(
+            label="Loading...",
+            disabled=True,
             style=discord.ButtonStyle.secondary,
+        )
+        self.add_item(self.page_indicator)
+
+        self.next_button = discord.ui.Button(
+            emoji="➡️",
+            style=discord.ButtonStyle.primary,
         )
         self.next_button.callback = self.on_next_button
         self.add_item(self.next_button)
@@ -363,9 +364,9 @@ class EditRoleListRoleView(discord.ui.View):
         with db_session as sess:
             base_qs = sess.query(
                 DiscordRole,
-                *DiscordRole.__table__.columns,
+                #*DiscordRole.__table__.columns,
                 RoleListRole,
-                *RoleListRole.__table__.columns,
+                #*RoleListRole.__table__.columns,
             ).outerjoin(
                 RoleListRole,
                 DiscordRole.discord_role_id == RoleListRole.discord_role_id,
@@ -377,7 +378,7 @@ class EditRoleListRoleView(discord.ui.View):
             options = [
                 discord.SelectOption(
                     label=discord_role.name,
-                    value=str(discord_role.id),
+                    value=str(discord_role.discord_role_id),
                     default=role_list_role is not None,
                 )
                 for discord_role, role_list_role, in page_res
@@ -395,13 +396,17 @@ class EditRoleListRoleView(discord.ui.View):
     async def on_new_roles_page(self, page_res: PageFnResult):
         """When a new page is loaded."""
         self._page_discord_roles_by_id = {
-            discord_role.id: discord_role
-            for discord_role in page_res['results']
+            discord_role.discord_role_id: discord_role
+            for discord_role, role_list_role in page_res['results']
         }
 
         # Show or hide pagination buttons
         self.prev_button.disabled = not page_res['has_prev_page']
         self.next_button.disabled = not page_res['has_next_page']
+
+        # Update page indicator
+        total_pages = math.ceil(page_res['total'] / page_res['page_size'])
+        self.page_indicator.label = f"{page_res['page'] + 1} / {total_pages}"
 
         # Get currently selected roles
         def get_role_discord_id(option: discord.SelectOption) -> int:
