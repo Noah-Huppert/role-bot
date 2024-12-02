@@ -129,10 +129,12 @@ class LoadPageFnResult(TypedDict, Generic[PageResultT]):
     :ivar options: The options for the page
     :ivar results: The raw data form of the page
     :ivar total: The total number of options
+    :ivar page_total: The total number of options in the page
     """
     options: List[discord.SelectOption]
     results: List[PageResultT]
     total: int
+    page_total: int
 
 class PageFnResult(LoadPageFnResult):
     """Result of :ref:`PaginatedSelect.page`.
@@ -192,7 +194,7 @@ class PaginatedSelect(discord.ui.Select):
 
         # Set options
         self.options = res['options']
-        self.max_values = min(self._page_size, res['total'])
+        self.max_values = min(self._page_size, res['page_total'])
         
         # Call handler
         return_val = {
@@ -361,7 +363,9 @@ class EditRoleListRoleView(discord.ui.View):
 
     async def load_roles_page(self, page: int, page_size: int) -> LoadPageFnResult[DiscordRole]:
         """Load a page of roles."""
+        print("load_roles_page")
         with db_session as sess:
+            sess.add(self._role_list)
             base_qs = sess.query(
                 DiscordRole,
                 #*DiscordRole.__table__.columns,
@@ -391,10 +395,12 @@ class EditRoleListRoleView(discord.ui.View):
                 'options': options,
                 'results': page_res,
                 'total': total,
+                'page_total': len(options),
             }
     
     async def on_new_roles_page(self, page_res: PageFnResult):
         """When a new page is loaded."""
+        print("on_new_roles_page", page_res)
         self._page_discord_roles_by_id = {
             discord_role.discord_role_id: discord_role
             for discord_role, role_list_role in page_res['results']
@@ -480,20 +486,23 @@ class EditRoleListRoleView(discord.ui.View):
         
         await interaction.response.send_message(content="\n".join(msg_parts))
 
-    def on_prev_button(self, interaction: discord.Interaction):
+    async def on_prev_button(self, interaction: discord.Interaction):
         """Run when the previous button is clicked."""
         self._page_num -= 1
-        self.roles_select.page(page=self._page_num)
-        interaction.response.send_message(view=self)
+        await self.roles_select.page(page=self._page_num)
+        await interaction.response.send_message(view=self)
 
-    def on_next_button(self, interaction: discord.Interaction):
+    async def on_next_button(self, interaction: discord.Interaction):
         """Run when the next button is clicked."""
         self._page_num += 1
-        self.roles_select.page(page=self._page_num)
-        interaction.response.send_message(view=self)
+        await self.roles_select.page(page=self._page_num)
+        await interaction.response.send_message(view=self)
 
 CMD_CREATE_ROLE_LIST = "create-role-list"
+"""Name of create role list slash command."""
+
 CMD_EDIT_ROLE_LIST_ROLES = "edit-roles"
+"""Name of edit role list roles slash command."""
 
 class AppClient(discord.Client):
     """Bot.
