@@ -151,7 +151,7 @@ PaginatedSelectLoadPageFn = Callable[[PageFnResult], LoadPageFnResult]
 
 :param page: The page number to load
 :param page_size: The number of options to load
-:return: The options for that page
+:return: The options for that page, must return more than 0 options
 """
 
 PaginaedSelectOnNewPage = Callable[[int, int], Awaitable[None]]
@@ -173,7 +173,7 @@ class PaginatedSelect(discord.ui.Select):
     ):
         super().__init__(
             max_values=1,
-            options=[discord.SelectOption(label="Loading...")],
+            options=[discord.SelectOption(label="Loading...", value="loading")],
             **kwargs
         )
 
@@ -182,14 +182,23 @@ class PaginatedSelect(discord.ui.Select):
         self._on_new_page = on_new_page
 
     async def page(self, page: int) -> PageFnResult:
-        """Load a specific page of options."""
+        """Load a specific page of options.
+        
+        :raise ValueError if load page returns no options
+        """
         # Load values
         res = await self._load_page(page=page, page_size=self._page_size)
+        if len(res['options']) == 0:
+            raise ValueError("Cannot return 0 options from load page callback")
 
         # Set options
         self.options = res['options']
         self.max_values = min(self._page_size, res['total'])
-        self.
+        print({
+            'options': self.options,
+            'max_values': self.max_values,
+            'res': res,
+        })
         
         # Call handler
         return_val = {
@@ -354,13 +363,14 @@ class EditRoleListRoleView(discord.ui.View):
         with db_session as sess:
             base_qs = sess.query(
                 DiscordRole,
+                *DiscordRole.__table__.columns,
                 RoleListRole,
+                *RoleListRole.__table__.columns,
             ).outerjoin(
                 RoleListRole,
                 DiscordRole.discord_role_id == RoleListRole.discord_role_id,
             ).where(
                 DiscordRole.guild_id == self._role_list.guild_id, # to be safe
-                RoleListRole.role_list_id == self._role_list.id,
             )
             page_res = base_qs.limit(page_size).offset(page * page_size).all()
 
@@ -372,7 +382,7 @@ class EditRoleListRoleView(discord.ui.View):
                 )
                 for discord_role, role_list_role, in page_res
             ]
-            self._prev_selected = len(list(map(lambda discord_role, role_list_role: role_list_role is not None, page_res)))
+            self._prev_selected = len(list(map(lambda tup: tup[1] is not None, page_res)))
 
             total = base_qs.count()
 
@@ -467,11 +477,15 @@ class EditRoleListRoleView(discord.ui.View):
 
     def on_prev_button(self, interaction: discord.Interaction):
         """Run when the previous button is clicked."""
-        self.roles_select.page()
+        self._page_num -= 1
+        self.roles_select.page(page=self._page_num)
+        interaction.response.send_message(view=self)
 
     def on_next_button(self, interaction: discord.Interaction):
         """Run when the next button is clicked."""
-        pass
+        self._page_num += 1
+        self.roles_select.page(page=self._page_num)
+        interaction.response.send_message(view=self)
 
 CMD_CREATE_ROLE_LIST = "create-role-list"
 CMD_EDIT_ROLE_LIST_ROLES = "edit-roles"
