@@ -8,6 +8,7 @@ import math
 
 import discord
 import sqlalchemy
+import sqlalchemy.orm
 
 from role_bot.config import cfg
 from role_bot.db import engine, db_session
@@ -121,6 +122,17 @@ class RoleListService:
 
             return to_add_discord_role_ids
         
+    def list_all_role_list_roles(self, role_list: RoleList) -> List[RoleListRole]:
+        """List all roles in a role list.
+        
+        :param role_list: The role list to get roles from
+        :return: List of role list roles
+        """
+        with db_session as sess:
+            return sess.query(RoleListRole).where(RoleListRole.role_list_id == role_list.id).options(sqlalchemy.orm.joinedload(RoleListRole.role_list))
+            
+        
+        
 
 PageResultT = TypeVar('PageResultT')
 class LoadPageFnResult(TypedDict, Generic[PageResultT]):
@@ -208,22 +220,57 @@ class PaginatedSelect(discord.ui.Select):
             await self._on_new_page(return_val)
 
         return return_val
+    
+class ViewRoleListView(discord.ui.View):
+    _role_list_svc: RoleListService
+    _role_list: RoleList
 
-class NewRoleListModal(
+    def __init__(self, role_list_svc: RoleListService, role_list: RoleList):
+        super().__init__()
+        self._role_list_svc = role_list_svc
+        self._role_list = role_list
+
+    async def send_message(self, interaction: discord.Interaction):
+        roles = self._role_list_svc.list_all_role_list_roles(role_list=self._role_list)
+        
+        await interaction.response.send_message(
+            embed=discord.Embed(
+                title=self._role_list.name,
+                description=f"📝 {self._role_list.description}\n\n🎭 **Available Roles**\n" + "\n".join([
+                    f"✨ {one_role.discord_role.name}" for one_role in roles
+                ]),
+                color=discord.Color.blue(),
+            ),
+            view=self,
+        )
+
+    @discord.ui.button(label="Edit Roles", style=discord.ButtonStyle.primary)
+    async def on_edit_roles_button(self, interaction: discord.Interaction):
+        """Handle edit roles button click."""
+        view = EditRoleListRoleView(
+            role_list_svc=self._role_list_svc,
+            role_list=self._role_list,
+        )
+        await view.prepare()
+        await view.send_message(interaction)
+
+    @discord.ui.button(label="Edit Details", style=discord.ButtonStyle.primary)
+    async def on_edit_details_button(self, interaction: discord.Interaction):
+        """Handle edit details button click."""
+        Edit
+
+class RoleListDetailsModal(
     discord.ui.Modal,
-    title="New Role List",
 ):
     """Create a new Role List."""
-    _role_list_svc: RoleListService
 
-    def __init__(self, role_list_svc: RoleListService):
-        super().__init__()
-
-        self._role_list_svc = role_list_svc
+    def __init__(self, title: str, name: Optional[str] = None, description: Optional[str] = None):
+        super().__init__(title=title)
 
         self.name = discord.ui.TextInput(
             label="Name",
             placeholder="Games",
+            default=name,
         )
         self.add_item(self.name)
 
@@ -231,8 +278,18 @@ class NewRoleListModal(
             label="Description",
             placeholder="Select the games you play",
             style=discord.TextStyle.long,
+            default=description,
         )
         self.add_item(self.description)
+
+class NewRoleListModal(RoleListDetailsModal):
+    """Create a new Role List."""
+    _role_list_svc: RoleListService
+
+    def __init__(self, role_list_svc: RoleListService):
+        super().__init__(title="New Role List")
+
+        self._role_list_svc = role_list_svc
 
     async def on_submit(self, interaction: discord.Interaction):
         with db_session as sess:
@@ -252,6 +309,18 @@ class NewRoleListModal(
                 color=discord.Color.blue(),
             )
             await interaction.response.send_message(embed=embed)
+
+class EditRoleListDetailsModal(RoleListDetailsModal):
+    """Edit Role List details"""
+    _role_list_svc: RoleListService
+
+    def __init__(self, role_list_svc: RoleListService):
+        super().__init__(title="Edit Role List Details")
+
+        self._role_list_svc = role_list_svc
+    
+    def on_submit(self, interaction: discord.Interaction):
+
 
 OnSelectRoleCallback = Callable[[discord.Interaction, RoleList], Awaitable[None]]
 class RoleListSelectView(discord.ui.View):
@@ -360,6 +429,12 @@ class EditRoleListRoleView(discord.ui.View):
     async def prepare(self):
         """Load initial data into view."""
         self.roles_select.options = (await self.roles_select.page(self._page_num))['options']
+
+    async def send_message(self, interaction: discord.Interaction):
+        """Send message with view."""
+        await interaction.response.send_message(
+            view=self,
+        )
 
     async def load_roles_page(self, page: int, page_size: int) -> LoadPageFnResult[DiscordRole]:
         """Load a page of roles."""
@@ -498,6 +573,9 @@ class EditRoleListRoleView(discord.ui.View):
         await self.roles_select.page(page=self._page_num)
         await interaction.response.send_message(view=self)
 
+CMD_VIEW_ROLE_LIST = "role-list"
+"""Overview and edit buttons."""
+
 CMD_CREATE_ROLE_LIST = "create-role-list"
 """Name of create role list slash command."""
 
@@ -517,7 +595,9 @@ class AppClient(discord.Client):
 
     _ready_event: asyncio.Event
 
-    def __init__(self, *args, target_guild_id: int, **kwargs):
+    _no_sync_cmds: bool
+
+    def __init__(self, *args, target_guild_id: int, no_sync_cmds: Optional[bool] = None, **kwargs):
         """Initialize.
         
         :param target_guild_id: ID of the Discord guild for which this bot will serve
@@ -533,7 +613,14 @@ class AppClient(discord.Client):
         self.target_guild_id = target_guild_id
         self._target_guild_id_obj = discord.Object(id=self.target_guild_id)
 
+        self._no_sync_cmds = no_sync_cmds if no_sync_cmds is not None else False
+
         self.tree = discord.app_commands.CommandTree(self)
+        self.tree.command(
+            name=CMD_VIEW_ROLE_LIST,
+            description="View and edit a role list",
+            guilds=[self._target_guild_id_obj],
+        )(self.interaction_view_role_list)
         self.tree.command(
             name=CMD_CREATE_ROLE_LIST,
             description="Create a new role list",
@@ -571,7 +658,10 @@ class AppClient(discord.Client):
 
     async def setup_hook(self):
         """Run when bot is starting up, ensures commands are registered properly in the target guild."""
-        await self.tree.sync(guild=self._target_guild_id_obj)
+        if not self._no_sync_cmds:
+            await self.tree.sync(guild=self._target_guild_id_obj)
+        else:
+            logger.info("Not syncing commands! If they changed your app won't work")
         logger.info("Synced commands to guild %s", self.target_guild_id)
 
     class SyncRolesResult(TypedDict):
@@ -643,6 +733,19 @@ class AppClient(discord.Client):
                 'renamed_discord_role_ids': renamed_discord_role_ids,
             }
 
+    async def interaction_view_role_list(self, interaction: discord.Interaction):
+        """View and edit role list."""
+        async def on_role_list_select(select_interaction: discord.Interaction, role_list: RoleList):
+            """When role is selected show overview and edit ui."""
+            await ViewRoleListView(
+                role_list_svc=self._role_list_svc,
+                role_list=role_list,
+            ).send_message(select_interaction)
+
+        await interaction.response.send_message(view=RoleListSelectView(
+            role_lists=self._role_list_svc.list_all(),
+            on_select=on_role_list_select,
+        ))
 
     async def interaction_create_role_list(self, interaction: discord.Interaction):
         """Create role list slash command handler."""
@@ -686,6 +789,11 @@ async def main():
     subparsers = parser.add_subparsers(dest="command", required=False)
 
     bot_parser = subparsers.add_parser("bot", help="Run the bot")
+    bot_parser.add_argument(
+        "--no-sync-commands", "-S",
+        help="Do not sync command definitions wiht Discord guilds. This saves time but if you change the definitions and don't sync then commands might not behave as they should.",
+        action='store_true',
+    )
     migrate_parser = subparsers.add_parser("migrate", help="Run migrations")
     sync_roles_parser = subparsers.add_parser("sync-roles", help="Sync Discord roles")
 
@@ -695,6 +803,7 @@ async def main():
         # Bot
         client = AppClient(
             target_guild_id=cfg.guild_id,
+            no_sync_cmds=args.no_sync_commands,
         )
 
         logger.info("Starting bot")
