@@ -7,7 +7,6 @@ from datetime import datetime
 import math
 
 import discord
-from discord.ext import commands
 import sqlalchemy
 
 from role_bot.config import cfg
@@ -505,74 +504,85 @@ CMD_CREATE_ROLE_LIST = "create-role-list"
 CMD_EDIT_ROLE_LIST_ROLES = "edit-roles"
 """Name of edit role list roles slash command."""
 
-class RoleManagementCog(commands.Cog):
-    """Cog for managing role lists and role assignments."""
+class AppClient(discord.Client):
+    """Bot.
     
-    def __init__(self, bot: discord.Client):
-        self.bot = bot
+    If not using :meth:`run` to serve bot interactions then you must call :meth:`wait_until_ready` before any methods.
+    """
+    _role_list_svc: RoleListService
+
+    _target_guild: discord.Guild
+    target_guild_id: int
+    _target_guild_id_obj: discord.Object
+
+    _ready_event: asyncio.Event
+
+    def __init__(self, *args, target_guild_id: int, **kwargs):
+        """Initialize.
+        
+        :param target_guild_id: ID of the Discord guild for which this bot will serve
+        """
+        intents = discord.Intents.default()
+        #intents.message_content = True
+
+        super().__init__(*args, intents=intents, **kwargs)
+
         self._role_list_svc = RoleListService()
-        self.target_guild_id = bot.target_guild_id
+
         self._target_guild = None
+        self.target_guild_id = target_guild_id
+        self._target_guild_id_obj = discord.Object(id=self.target_guild_id)
+
+        self.tree = discord.app_commands.CommandTree(self)
+        self.tree.command(
+            name=CMD_CREATE_ROLE_LIST,
+            description="Create a new role list",
+            guilds=[self._target_guild_id_obj],
+        )(self.interaction_create_role_list)
+        self.tree.command(
+            name=CMD_EDIT_ROLE_LIST_ROLES,
+            description="Edit roles in a role list",
+            guilds=[self._target_guild_id_obj],
+        )(self.interaction_edit_roles)
+
         self._ready_event = asyncio.Event()
 
     async def get_target_guild(self) -> discord.Guild:
-        """Lazy loads the target guild."""
+        """Lazy loads the target guild.
+        
+        Because it cannot be retrieved until the the client is ready.
+        """
         if self._target_guild is None:
-            self._target_guild = await self.bot.fetch_guild(self.target_guild_id)
+            self._target_guild = await self.fetch_guild(self.target_guild_id)
+        
         return self._target_guild
 
-    @discord.app_commands.command(
-        name=CMD_CREATE_ROLE_LIST,
-        description="Create a new role list"
-    )
-    async def create_role_list(self, interaction: discord.Interaction):
-        """Create role list slash command handler."""
-        await interaction.response.send_modal(NewRoleListModal(
-            role_list_svc=self._role_list_svc,
-        ))
+    async def on_ready(self):
+        """Run when the bot is done setting up."""
+        logger.info("Logged in as %s", self.user)
 
-    @discord.app_commands.command(
-        name=CMD_EDIT_ROLE_LIST_ROLES,
-        description="Edit roles in a role list"
-    )
-    async def edit_roles(self, interaction: discord.Interaction):
-        """Edit roles slash command handler."""
-        async def on_role_list_select(select_interaction: discord.Interaction, role_list: RoleList):
-            view = EditRoleListRoleView(
-                role_list_svc=self._role_list_svc,
-                role_list=role_list,
-            )
-            await view.prepare()
-            await select_interaction.response.send_message(
-                content=f"Edit '{role_list.name}' role list roles",
-                view=view,
-            )
-        
-        role_lists = self._role_list_svc.list_all()
-        if len(role_lists) > 0:
-            await interaction.response.send_message(
-                "Select role list to edit",
-                view=RoleListSelectView(
-                    on_select=on_role_list_select,
-                    role_lists=role_lists,
-                ),
-            )
-        else:
-            await interaction.response.send_message(f"No role lists, use `/{CMD_CREATE_ROLE_LIST}` to create one")
+        self.target_guild = await self.fetch_guild(self.target_guild_id)
+
+        self._ready_event.set()
+
+    async def wait_until_ready(self):
+        """Wait until the bot is ready."""
+        return await self._ready_event.wait()
+
+    async def setup_hook(self):
+        """Run when bot is starting up, ensures commands are registered properly in the target guild."""
+        await self.tree.sync(guild=self._target_guild_id_obj)
+        logger.info("Synced commands to guild %s", self.target_guild_id)
 
     class SyncRolesResult(TypedDict):
-        """Result of syncing roles between Discord and database."""
+        """Results of :meth:`sync_roles`."""
         discord_role_ids: Set[int]
-        """All Discord role IDs in the guild."""
         added_discord_role_ids: Set[int]
-        """Discord role IDs that were added to the database."""
         rm_discord_role_ids: Set[int]
-        """Discord role IDs that were removed from the database."""
         renamed_discord_role_ids: Set[int]
-        """Discord role IDs that had their names updated."""
 
     async def sync_roles(self) -> SyncRolesResult:
-        """Ensure only roles which exist in the target guild exist in the database."""
+        """Ensure only roles which exist in the target guild exist in the database as :class:`DiscordRole`."""
         with db_session as sess:
             # Load roles IDs for DB
             db_discord_role_ids = {
@@ -633,20 +643,43 @@ class RoleManagementCog(commands.Cog):
                 'renamed_discord_role_ids': renamed_discord_role_ids,
             }
 
-# Modify AppClient to use the cog
-class AppClient(discord.Client):
-    def __init__(self, *args, target_guild_id: int, **kwargs):
-        intents = discord.Intents.default()
-        super().__init__(*args, intents=intents, **kwargs)
-        self.target_guild_id = target_guild_id
-        self._target_guild_id_obj = discord.Object(id=self.target_guild_id)
-        self.tree = discord.app_commands.CommandTree(self)
 
-    async def setup_hook(self):
-        """Setup the cog and sync commands."""
-        await self.add_cog(RoleManagementCog(self))
-        await self.tree.sync(guild=self._target_guild_id_obj)
-        logger.info("Synced commands to guild %s", self.target_guild_id)
+    async def interaction_create_role_list(self, interaction: discord.Interaction):
+        """Create role list slash command handler."""
+        await interaction.response.send_modal(NewRoleListModal(
+            role_list_svc=self._role_list_svc,
+        ))
+
+    async def interaction_edit_roles(self, interaction: discord.Interaction):
+        """Edit roles slash command handler."""
+        async def on_role_list_select(select_interaction: discord.Interaction, role_list: RoleList):
+            """When a role list is selected show the edit roles view for that role list"""
+            view = EditRoleListRoleView(
+                    role_list_svc=self._role_list_svc,
+                    role_list=role_list,
+                )
+            await view.prepare()
+            await select_interaction.response.send_message(
+                content=f"Edit '{role_list.name}' role list roles",
+                view=view,
+            )
+        
+        # Check if there are any role lists yet
+        role_lists = self._role_list_svc.list_all()
+        if len(role_lists) > 0:
+            # If role lists, ask which role list to edit
+            await interaction.response.send_message(
+                "Select role list to edit",
+                view=RoleListSelectView(
+                    on_select=on_role_list_select,
+                    role_lists=role_lists,
+                ),
+            )
+        else:
+            # If no role lists then say how to make one
+            await interaction.response.send_message(f"No role lists, use `/{CMD_CREATE_ROLE_LIST}` to create one")
+
+
 
 async def main():
     parser = argparse.ArgumentParser(description="Role Bot")
