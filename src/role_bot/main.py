@@ -210,19 +210,11 @@ PaginaedSelectOnNewPage = Callable[[int, int], Awaitable[None]]
 """Called when a new page is loaded."""
 
 class PaginatedSelect(discord.ui.Select, Generic[PageResultT]):
-    """Select menu with hook to paginate options.
-    
-    :ivar page_data: Data for currently loaded page, read only (editting won't change select options)
-    :ivar initial_page_options: Options for currently loaded page as they were when the page was loaded
-    """
+    """Select menu with hook to paginate options."""
 
     _load_page: PaginatedSelectLoadPageFn[PageResultT]
     _page_size: int
     _on_new_page: Optional[PaginaedSelectOnNewPage]
-
-    page_data: List[PageResultT]
-    initial_page_options: List[discord.SelectOption]
-    last_selection: List[discord.SelectOption]
 
     def __init__(
         self,
@@ -241,12 +233,6 @@ class PaginatedSelect(discord.ui.Select, Generic[PageResultT]):
         self._page_size = page_size
         self._on_new_page = on_new_page
 
-        self.page_data = []
-        self.initial_page_options = []
-        self.last_selection = []
-
-        self.callback = self._on_select
-
     async def page(self, page: int) -> PageFnResult:
         """Load a specific page of options.
         
@@ -256,14 +242,10 @@ class PaginatedSelect(discord.ui.Select, Generic[PageResultT]):
         res = await self._load_page(page=page, page_size=self._page_size)
         if len(res['options']) == 0:
             raise ValueError("Cannot return 0 options from load page callback")
-        
-        # Set read only data about page
-        self.page_data = res['results']
-        self.initial_page_options = res['options']
+
         # Set options
         self.options = res['options']
         self.max_values = min(self._page_size, res['page_total'])
-        self.last_selection = res['options']
 
         # Call handler
         return_val = {
@@ -277,10 +259,6 @@ class PaginatedSelect(discord.ui.Select, Generic[PageResultT]):
             await self._on_new_page(return_val)
 
         return return_val
-    
-    def _on_select(self, interaction: discord.Interaction):
-        """Run when a selection is made."""
-        self.
     
 class ViewRoleListView(discord.ui.View):
     _role_list_svc: RoleListService
@@ -462,6 +440,12 @@ class EditRoleListRoleView(discord.ui.View):
     _page_discord_roles_by_id: Dict[int, DiscordRole]
     _page_num: int
 
+    _last_selection: List[str]
+    """The previous selection of roles, used to diff changes.
+    
+    Only include options which are selected in this list (pre-filter by option.default before adding).
+    """
+
     def __init__(
         self,
         role_list_svc: RoleListService,
@@ -542,7 +526,6 @@ class EditRoleListRoleView(discord.ui.View):
                 )
                 for discord_role, role_list_role, in page_res
             ]
-            self._prev_selected = len(list(map(lambda tup: tup[1] is not None, page_res)))
 
             total = base_qs.count()
 
@@ -568,11 +551,15 @@ class EditRoleListRoleView(discord.ui.View):
         total_pages = math.ceil(page_res['total'] / page_res['page_size'])
         self.page_indicator.label = f"{page_res['page'] + 1} / {total_pages}"
 
+        # Track last selection so we can diff changes
+        self._last_selection = [ str(opt.value) for opt in page_res['options'] if opt.default ]
+
     async def on_roles_select(self, interaction: discord.Interaction):
         """Run when a change to role selections are made."""
+        # Determine which roles were selected or deselected
         initially_selected_discord_role_ids = {
-            int(option.value)
-            for option in self.roles_select.initial_page_options if option.default
+            int(option)
+            for option in self._last_selection
         }
         selected_discord_role_ids = {
             int(id)
@@ -582,6 +569,10 @@ class EditRoleListRoleView(discord.ui.View):
         add_discord_ids = selected_discord_role_ids.difference(initially_selected_discord_role_ids)
         rm_discord_ids = initially_selected_discord_role_ids.difference(selected_discord_role_ids)
 
+        # Record this selection so we can diff next time
+        self._last_selection = self.roles_select.values
+
+        # Modify role list roles
         added_discord_role_ids = self._role_list_svc.add_discord_roles(
             role_list=self._role_list,
             add_discord_role_ids=add_discord_ids,
@@ -592,6 +583,7 @@ class EditRoleListRoleView(discord.ui.View):
             remove_discord_role_ids=rm_discord_ids,
         )
 
+        # Send message about changes
         add_role_names_by_id = {
             discord_role_id: f"- {self._page_discord_roles_by_id[discord_role_id].name}"
             for discord_role_id in added_discord_role_ids
@@ -609,7 +601,7 @@ class EditRoleListRoleView(discord.ui.View):
             msg_parts.append(f"Removed roles on page {self._page_num + 1}:\n{'\n'.join(rm_role_names_by_ids.values())}")
 
         if len(msg_parts) == 0:
-            msg_parts.append(f"No changes made to {self._page_num + 1}")
+            msg_parts.append(f"No changes made to page {self._page_num + 1}")
         
         await interaction.response.send_message(content="\n".join(msg_parts))
 
