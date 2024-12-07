@@ -626,6 +626,9 @@ CMD_CREATE_ROLE_LIST = "create-role-list"
 CMD_EDIT_ROLE_LIST_ROLES = "edit-roles"
 """Name of edit role list roles slash command."""
 
+CMD_EDIT_ROLE_LIST_DETAILS = "edit-details"
+"""Name of edit role list details slash command."""
+
 class AppClient(discord.Client):
     """Bot.
     
@@ -675,6 +678,10 @@ class AppClient(discord.Client):
             description="Edit roles in a role list",
             guilds=[self._target_guild_id_obj],
         )(self.interaction_edit_roles)
+        self.tree.command(
+            name=CMD_EDIT_ROLE_LIST_DETAILS,
+            description="Edit role list details",
+        )(self.interaction_edit_role_list_details)
 
         self._ready_event = asyncio.Event()
 
@@ -784,6 +791,23 @@ class AppClient(discord.Client):
                 'rm_discord_role_ids': to_rm_discord_role_ids,
                 'renamed_discord_role_ids': renamed_discord_role_ids,
             }
+        
+    async def _send_select_role_list_view(self, interaction: discord.Interaction, on_select: Callable[[discord.Interaction, RoleList], Awaitable[None]]):
+        """Send the select role list view with proper handling if no role lists exist."""
+        # Only send selection view if there are role lists
+        role_lists = self._role_list_svc.list_all()
+        if len(role_lists) > 0:
+            # If role lists, ask which role list to edit
+            await interaction.response.send_message(
+                "Select role list to edit",
+                view=RoleListSelectView(
+                    on_select=on_select,
+                    role_lists=role_lists,
+                ),
+            )
+        else:
+            # If no role lists then say how to make one
+            await interaction.response.send_message(f"No role lists, use `/{CMD_CREATE_ROLE_LIST}` to create one")
 
     async def interaction_view_role_list(self, interaction: discord.Interaction):
         """View and edit role list."""
@@ -794,10 +818,7 @@ class AppClient(discord.Client):
                 role_list=role_list,
             ).send_message(select_interaction)
 
-        await interaction.response.send_message(view=RoleListSelectView(
-            role_lists=self._role_list_svc.list_all(),
-            on_select=on_role_list_select,
-        ))
+        await self._send_select_role_list_view(on_role_list_select)
 
     async def interaction_create_role_list(self, interaction: discord.Interaction):
         """Create role list slash command handler."""
@@ -819,21 +840,20 @@ class AppClient(discord.Client):
                 view=view,
             )
         
-        # Check if there are any role lists yet
-        role_lists = self._role_list_svc.list_all()
-        if len(role_lists) > 0:
-            # If role lists, ask which role list to edit
-            await interaction.response.send_message(
-                "Select role list to edit",
-                view=RoleListSelectView(
-                    on_select=on_role_list_select,
-                    role_lists=role_lists,
-                ),
-            )
-        else:
-            # If no role lists then say how to make one
-            await interaction.response.send_message(f"No role lists, use `/{CMD_CREATE_ROLE_LIST}` to create one")
+        await self._send_select_role_list_view(on_role_list_select)
 
+    async def interaction_edit_role_list_details(self, interaction: discord.Interaction):
+        """Edit role list details slash command handler."""
+        async def on_role_list_select(select_interaction: discord.Interaction, role_list: RoleList):
+            """When a role list is selected show the edit role list details modal for that role list"""
+            modal = EditRoleListDetailsModal(
+                role_list_svc=self._role_list_svc,
+                role_list=role_list,
+            )
+            await modal.prepare()
+            await select_interaction.response.send_modal(modal)
+        
+        await self._send_select_role_list_view(on_role_list_select)
 
 
 async def main():
