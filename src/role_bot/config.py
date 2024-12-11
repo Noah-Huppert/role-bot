@@ -17,6 +17,12 @@ class Config(BaseSettings):
     db_uri: str = "postgresql://devrolebot:devrolebot@localhost/devrolebot"
     """URI for database"""
 
+    send_debug_logs_to_discord: bool = False
+    """If error and internal information (like source code in stack traces) should be sent in Discord.
+    
+    This is useful for debugging and development.
+    """
+
 class LoadConfigError(Exception):
     """Failed to load configuration."""
 
