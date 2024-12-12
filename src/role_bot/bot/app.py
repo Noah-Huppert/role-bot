@@ -1,75 +1,61 @@
+from typing import Awaitable, Callable, Optional, Set, TypedDict
 import asyncio
 from datetime import datetime
-import traceback
+import os
 import logging
-from typing import Awaitable, Callable, Optional, Set, TypedDict
 
 import discord
 
+from role_bot.bot.errors import interaction_error_handler
 from role_bot.bot.modals import EditRoleListDetailsModal, NewRoleListModal
 from role_bot.bot.services import RoleListService
 from role_bot.bot.views import EditRoleListRoleView, RoleListSelectView, ViewRoleListView
 from role_bot.db import engine, db_session
 from role_bot.models import DiscordRole, RoleList
+from role_bot.bot.constants import CMD_VIEW_ROLE_LIST, CMD_CREATE_ROLE_LIST, CMD_EDIT_ROLE_LIST_ROLES, CMD_EDIT_ROLE_LIST_DETAILS
 
 logger = logging.getLogger(__name__)
 
-CMD_VIEW_ROLE_LIST = "role-list"
-"""Overview and edit buttons."""
+class DiscordRoleShouldHaveBeenAddedError(Exception):
+    """Raised when a Discord role should have been added but wasn't."""
+    def __init__(self, discord_role_id: int):
+        super().__init__(f"Discord role {discord_role_id} should have been added but wasn't, this is a bug")
 
-CMD_CREATE_ROLE_LIST = "create-role-list"
-"""Name of create role list slash command."""
+class AppClientCtxMgr:
+    """Context manager for the bot."""
+    _app_client: "AppClient"
 
-CMD_EDIT_ROLE_LIST_ROLES = "edit-roles"
-"""Name of edit role list roles slash command."""
+    def __init__(self, **kwargs):
+        """Initialize.
 
-CMD_EDIT_ROLE_LIST_DETAILS = "edit-details"
-"""Name of edit role list details slash command."""
+        :param kwargs: Keyword arguments to pass to :class:`AppClient`.
+        """
+        self._app_client = AppClient(**kwargs)
 
-def interaction_error_handler(func):
-    """Decorator to catch exceptions and send stack trace as an ephemeral message."""
-    async def wrapper(self, interaction: discord.Interaction, *args, **kwargs):
-        try:
-            return await func(self, interaction, *args, **kwargs)
-        except Exception as e:
-            # Get the stack trace
-            stack_trace = traceback.format_exc()
-            
-            # Log the error (optional)
-            logger.error(f"Error in {func.__name__}: {e}\n{stack_trace}")
-            
-            # Send the stack trace as an ephemeral message
-            await interaction.response.send_message(
-                f"""An error occurred in {func.__name__}:
-```python
-{stack_trace}
-```""",
-                ephemeral=True
-            )
-    return wrapper
+    async def __aenter__(self):
+        """Enter the context manager."""
+        return self._app_client
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        await self._app_client.close()
 
 class AppClient(discord.Client):
-    """Bot.
-    
-    If not using :meth:`run` to serve bot interactions then you must call :meth:`wait_until_ready` before any methods.
-    """
+    """Bot."""
     _role_list_svc: RoleListService
 
-    _target_guild: discord.Guild
+    _target_guild: Optional[discord.Guild]
     target_guild_id: int
     _target_guild_id_obj: discord.Object
 
     _ready_event: asyncio.Event
+    _event_loop_start_requested: bool = False
 
-    _do_sync_cmds: bool
-
-    def __init__(self, *args, target_guild_id: int, do_sync_cmds: Optional[bool] = None, **kwargs):
+    def __init__(self, *args, target_guild_id: int, **kwargs):
         """Initialize.
         
         :param target_guild_id: ID of the Discord guild for which this bot will serve
         """
         intents = discord.Intents.default()
-        #intents.message_content = True
 
         super().__init__(*args, intents=intents, **kwargs)
 
@@ -79,13 +65,23 @@ class AppClient(discord.Client):
         self.target_guild_id = target_guild_id
         self._target_guild_id_obj = discord.Object(id=self.target_guild_id)
 
-        self._do_sync_cmds = do_sync_cmds if do_sync_cmds is not None else False
-
         self._ready_event = asyncio.Event()
 
-        # Register commands
-        self.tree = discord.app_commands.CommandTree(self)
-        @self.tree.command(
+        # Setup slash command handlers
+        self.tree = self._define_cmd_tree()
+        
+    @classmethod
+    def ctx_mgr(cls, **kwargs):
+        """Create a context manager for the Discord client.
+        
+        :param kwargs: Keyword arguments to pass to :class:`AppClient`.
+        """
+        return AppClientCtxMgr(**kwargs)
+    
+    def _define_cmd_tree(self) -> discord.app_commands.CommandTree:
+        """Define the command tree."""
+        tree = discord.app_commands.CommandTree(self)
+        @tree.command(
             name=CMD_VIEW_ROLE_LIST,
             description="View and edit a role list",
             guilds=[self._target_guild_id_obj],
@@ -93,7 +89,7 @@ class AppClient(discord.Client):
         async def view_role_list(interaction: discord.Interaction):
             return await self.interaction_view_role_list(interaction)
         
-        @self.tree.command(
+        @tree.command(
             name=CMD_CREATE_ROLE_LIST,
             description="Create a new role list",
             guilds=[self._target_guild_id_obj],
@@ -101,7 +97,7 @@ class AppClient(discord.Client):
         async def create_role_list(interaction: discord.Interaction):
             return await self.interaction_create_role_list(interaction)
         
-        @self.tree.command(
+        @tree.command(
             name=CMD_EDIT_ROLE_LIST_ROLES,
             description="Edit roles in a role list",
             guilds=[self._target_guild_id_obj],
@@ -109,13 +105,24 @@ class AppClient(discord.Client):
         async def edit_roles(interaction: discord.Interaction):
             return await self.interaction_edit_roles(interaction)
         
-        @self.tree.command(
+        @tree.command(
             name=CMD_EDIT_ROLE_LIST_DETAILS,
             description="Edit role list details",
             guilds=[self._target_guild_id_obj],
         )
         async def edit_role_list_details(interaction: discord.Interaction):
             return await self.interaction_edit_role_list_details(interaction)
+        
+        return tree
+    async def start(self, *args, **kwargs):
+        """Overriden start() to set the event loop start requested flag."""
+        self._event_loop_start_requested = True
+        return await super().start(*args, **kwargs)
+    
+    async def run(self, *args, **kwargs):
+        """Overriden run() to set the event loop start requested flag."""
+        self._event_loop_start_requested = True
+        return super().run(*args, **kwargs)
 
     async def get_target_guild(self) -> discord.Guild:
         """Lazy loads the target guild.
@@ -129,31 +136,25 @@ class AppClient(discord.Client):
 
     async def on_ready(self):
         """Run when the bot is done setting up."""
-        logger.info("Logged in as %s", self.user)
-
-        self.target_guild = await self.fetch_guild(self.target_guild_id)
+        logger.info("AppClient ready and logged in as %s", self.user)
 
         self._ready_event.set()
 
     async def wait_until_ready(self):
-        """Wait until the bot is ready."""
+        """Wait until the bot is ready. Only returns if the Discord client event loop is running.
+        
+        This means the method won't return unless self.start() is called. However this method will block where it is called. See `asyncio.create_task()` to run in a non-blocking way.
+
+        :raises RuntimeError: If the event loop was not started.
+        """
+        if not self._event_loop_start_requested:
+            raise RuntimeError("Event loop was not started so this method would block indefinitely")
+
         return await self._ready_event.wait()
 
-    async def setup_hook(self):
-        """Run when bot is starting up, ensures commands are registered properly in the target guild."""
-        if self._do_sync_cmds:
-            # Clean all commands (rm all our app's commands in this guild)
-            #await self.tree.sync(guild=self._target_guild_id_obj)
-            #self.tree.clear_commands(guild=self._target_guild_id_obj) 
-
-            logger.info("Syncing commands to guild %s", self.target_guild_id)
-
-            # Add commands
-            await self.tree.sync(guild=self._target_guild_id_obj)
-
-            logger.info("Synced commands to guild %s", self.target_guild_id)
-        else:
-            logger.info("Not syncing commands! If they changed your app won't work")
+    #async def setup_hook(self):
+    #    """Run when bot is starting up, ensures commands are registered properly in the target guild."""
+    #    pass
 
     class SyncRolesResult(TypedDict):
         """Results of :meth:`sync_roles`."""
@@ -206,6 +207,8 @@ class AppClient(discord.Client):
                 db_discord_role = sess.query(DiscordRole).where(
                     DiscordRole.discord_role_id == discord_role_id,
                 ).one_or_none()
+                if db_discord_role is None:
+                    raise DiscordRoleShouldHaveBeenAddedError(discord_role_id)
 
 
                 if db_discord_role.name != discord_role.name:
@@ -218,11 +221,27 @@ class AppClient(discord.Client):
             sess.commit()
 
             return {
-                'discord_role_ids': discord_roles_by_ids.keys(),
+                'discord_role_ids': set(discord_roles_by_ids.keys()),
                 'added_discord_role_ids': missing_db_discord_role_ids,
                 'rm_discord_role_ids': to_rm_discord_role_ids,
                 'renamed_discord_role_ids': renamed_discord_role_ids,
             }
+    
+    async def sync_commands(self):
+        """Sync commands to the target guild."""
+        logger.info("Syncing commands to guild %s", self.target_guild_id)
+
+        # Add commands
+        synced = await self.tree.sync(guild=self._target_guild_id_obj)
+
+        logger.info("Synced commands to guild %s: %s", self.target_guild_id, ", ".join([f"/{cmd.name}" for cmd in synced]))
+
+    async def clear_commands(self, clear_global: bool = False):
+        """Clear all commands in the target guild."""
+        self.tree.clear_commands(guild=self._target_guild_id_obj if not clear_global else None)
+        await self.tree.sync(guild=self._target_guild_id_obj if not clear_global else None)
+
+        logger.info("Cleared commands, AppClient instance won't handle any commands afterwards")
         
     async def _send_select_role_list_view(self, interaction: discord.Interaction, on_select: Callable[[discord.Interaction, RoleList], Awaitable[None]]):
         """Send the select role list view with proper handling if no role lists exist."""
@@ -251,7 +270,7 @@ class AppClient(discord.Client):
                 role_list=role_list,
             ).send_message(select_interaction)
 
-        await self._send_select_role_list_view(on_role_list_select)
+        await self._send_select_role_list_view(interaction=interaction, on_select=on_role_list_select)
 
     @interaction_error_handler
     async def interaction_create_role_list(self, interaction: discord.Interaction):
@@ -275,7 +294,7 @@ class AppClient(discord.Client):
                 view=view,
             )
         
-        await self._send_select_role_list_view(on_role_list_select)
+        await self._send_select_role_list_view(interaction=interaction, on_select=on_role_list_select)
 
     @interaction_error_handler
     async def interaction_edit_role_list_details(self, interaction: discord.Interaction):
@@ -289,4 +308,31 @@ class AppClient(discord.Client):
             await modal.prepare()
             await select_interaction.response.send_modal(modal)
         
-        await self._send_select_role_list_view(on_role_list_select)
+        await self._send_select_role_list_view(interaction=interaction, on_select=on_role_list_select)
+
+    async def ensure_custom_emojis(self, guild_id: int):
+        """Ensure custom emojis exist in the specified guild for each image in 'images/custom-emojis'."""
+        guild = self.get_guild(guild_id)
+        if not guild:
+            print(f"Guild with ID {guild_id} not found.")
+            return
+
+        # List all image files in the directory
+        emoji_dir = 'images/custom-emojis'
+        emoji_files = [f for f in os.listdir(emoji_dir) if os.path.isfile(os.path.join(emoji_dir, f))]
+
+        # Get existing emojis in the guild
+        existing_emojis = {emoji.name: emoji for emoji in guild.emojis}
+
+        for emoji_file in emoji_files:
+            emoji_name, _ = os.path.splitext(emoji_file)
+            if emoji_name not in existing_emojis:
+                # Read the image file
+                with open(os.path.join(emoji_dir, emoji_file), 'rb') as image:
+                    image_data = image.read()
+
+                # Create the emoji
+                await guild.create_custom_emoji(name=emoji_name, image=image_data)
+                logger.info(f"Created emoji: {emoji_name}")
+            else:
+                logger.info(f"Emoji {emoji_name} already exists.")

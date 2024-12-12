@@ -16,8 +16,8 @@ class LoadPageFnResult(TypedDict, Generic[PageResultT]):
     """
     options: List[discord.SelectOption]
     results: List[PageResultT]
-    total: int
-    page_total: int
+    total: Optional[int]
+    page_total: Optional[int]
 
 class PageFnResult(LoadPageFnResult[PageResultT]):
     """Result of :ref:`PaginatedSelect.page`.
@@ -27,10 +27,10 @@ class PageFnResult(LoadPageFnResult[PageResultT]):
     """
     page: int
     page_size: int
-    hav_prev_page: bool
+    has_prev_page: bool
     has_next_page: bool
 
-PaginatedSelectLoadPageFn = Callable[[PageFnResult], Awaitable[LoadPageFnResult[PageResultT]]]
+PaginatedSelectLoadPageFn = Callable[[int, int], Awaitable[LoadPageFnResult[PageResultT]]]
 """Called when a specific page of options is requested.
 
 :param page: The page number to load
@@ -38,7 +38,7 @@ PaginatedSelectLoadPageFn = Callable[[PageFnResult], Awaitable[LoadPageFnResult[
 :return: The options for that page, must return more than 0 options
 """
 
-PaginaedSelectOnNewPage = Callable[[int, int], Awaitable[None]]
+PaginatedSelectOnNewPage = Callable[[PageFnResult], Awaitable[None]]
 """Called when a new page is loaded."""
 
 class PaginatedSelect(discord.ui.Select, Generic[PageResultT]):
@@ -46,12 +46,12 @@ class PaginatedSelect(discord.ui.Select, Generic[PageResultT]):
 
     _load_page: PaginatedSelectLoadPageFn[PageResultT]
     _page_size: int
-    _on_new_page: Optional[PaginaedSelectOnNewPage]
+    _on_new_page: Optional[PaginatedSelectOnNewPage]
 
     def __init__(
         self,
         load_page: PaginatedSelectLoadPageFn,
-        on_new_page: Optional[PaginaedSelectOnNewPage] = None,
+        on_new_page: Optional[PaginatedSelectOnNewPage] = None,
         page_size=DEFAULT_PAGE_SIZE,
         **kwargs,
     ):
@@ -71,21 +71,21 @@ class PaginatedSelect(discord.ui.Select, Generic[PageResultT]):
         :raise ValueError if load page returns no options
         """
         # Load values
-        res = await self._load_page(page=page, page_size=self._page_size)
+        res = await self._load_page(page,self._page_size)
         if len(res['options']) == 0:
             raise ValueError("Cannot return 0 options from load page callback")
 
         # Set options
-        self.options = res['options']
-        self.max_values = min(self._page_size, res['page_total'])
+        self.options = res['options'] or []
+        self.max_values = min(self._page_size, res['page_total'] or 0)
 
         # Call handler
-        return_val = {
+        return_val: PageFnResult = {
             **res,
             'page': page,
             'page_size': self._page_size,
             'has_prev_page': page > 0,
-            'has_next_page': res['total'] > (page + 1) * self._page_size,
+            'has_next_page': res['total'] is not None and res['total'] > (page + 1) * self._page_size,
         }
         if self._on_new_page is not None:
             await self._on_new_page(return_val)

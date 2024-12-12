@@ -1,43 +1,15 @@
  
 import math
-from typing import Awaitable, Callable, Dict, List
+from typing import Awaitable, Callable, Dict, List, Optional
 import discord
 
 from role_bot.bot.components import LoadPageFnResult, PageFnResult, PaginatedSelect
+from role_bot.bot.embeds import make_role_list_roles_summary_embed
+from role_bot.bot.errors import interaction_error_handler
 from role_bot.bot.modals import EditRoleListDetailsModal
 from role_bot.bot.services import RoleListService
 from role_bot.models import DiscordRole, RoleList, RoleListRole
 from role_bot.db import engine, db_session
-
-
-def make_role_list_details_summary_embed(role_list: RoleList) -> discord.Embed:
-    """Construct an embed that summarizes the details of a role list.
-    
-    :param role_list: The role list to summarize
-    :return: The embed
-    """
-    return discord.Embed(
-        title="Created Role List",
-        description=f"""
-**Name:** {role_list.name}  
-**Description:** {role_list.description}""",
-        color=discord.Color.blue(),
-    )
-
-def make_role_list_roles_summary_embed(role_list: RoleList, roles: List[RoleListRole]) -> discord.Embed:
-    """Construct an embed that summarizes the roles in a role list.
-    
-    :param role_list: The role list to summarize
-    :param roles: The roles in the role list
-    :return: The embed
-    """
-    return discord.Embed(
-        title=role_list.name,
-        description=f"📝 {role_list.description}\n\n🎭 **Available Roles**\n" + "\n".join([
-            f"✨ {one_role.discord_role.name}" for one_role in roles
-        ]),
-        color=discord.Color.blue(),
-    )
     
 class ViewRoleListView(discord.ui.View):
     _role_list_svc: RoleListService
@@ -48,6 +20,7 @@ class ViewRoleListView(discord.ui.View):
         self._role_list_svc = role_list_svc
         self._role_list = role_list
 
+    @interaction_error_handler
     async def send_message(self, interaction: discord.Interaction):
         roles = self._role_list_svc.list_all_role_list_roles(role_list=self._role_list)
         
@@ -124,6 +97,7 @@ class RoleListSelectView(discord.ui.View):
         self.select.callback = self.on_select
         self.add_item(self.select)
 
+    @interaction_error_handler
     async def on_select(self, interaction: discord.Interaction):
         """Run when a role list is selected."""
         await self._on_select_callback(interaction, self._role_lists[int(self.select.values[0])])
@@ -192,6 +166,7 @@ class EditRoleListRoleView(discord.ui.View):
         """Load initial data into view."""
         self.roles_select.options = (await self.roles_select.page(self._page_num))['options']
 
+    @interaction_error_handler
     async def send_message(self, interaction: discord.Interaction):
         """Send message with view."""
         await interaction.response.send_message(
@@ -200,37 +175,30 @@ class EditRoleListRoleView(discord.ui.View):
 
     async def load_roles_page(self, page: int, page_size: int) -> LoadPageFnResult[DiscordRole]:
         """Load a page of roles."""
-        with db_session as sess:
-            sess.add(self._role_list)
-            base_qs = sess.query(
-                DiscordRole,
-                RoleListRole,
-            ).outerjoin(
-                RoleListRole,
-                DiscordRole.discord_role_id == RoleListRole.discord_role_id,
-            ).where(
-                DiscordRole.guild_id == self._role_list.guild_id, # to be safe
+        page_res = self._role_list_svc.list_paged_guild_discord_roles(
+            guild_id=self._role_list.guild_id,
+            page=page,
+            page_size=page_size,
+        )
+
+        options = [
+            discord.SelectOption(
+                label=row['discord_role'].name,
+                value=str(row['discord_role'].discord_role_id),
+                default=row['role_list_role'] is not None,
             )
-            page_res = base_qs.limit(page_size).offset(page * page_size).all()
+            for row in page_res['data']
+        ]
 
-            options = [
-                discord.SelectOption(
-                    label=discord_role.name,
-                    value=str(discord_role.discord_role_id),
-                    default=role_list_role is not None,
-                )
-                for discord_role, role_list_role, in page_res
-            ]
+        total = page_res['total_count']
 
-            total = base_qs.count()
+        return {
+            'options': options,
+            'results': [ row['discord_role'] for row in page_res['data'] ],
+            'total': total,
+            'page_total': len(options),
+        }
 
-            return {
-                'options': options,
-                'results': page_res,
-                'total': total,
-                'page_total': len(options),
-            }
-    
     async def on_new_roles_page(self, page_res: PageFnResult):
         """When a new page is loaded."""
         self._page_discord_roles_by_id = {
@@ -243,12 +211,13 @@ class EditRoleListRoleView(discord.ui.View):
         self.next_button.disabled = not page_res['has_next_page']
 
         # Update page indicator
-        total_pages = math.ceil(page_res['total'] / page_res['page_size'])
-        self.page_indicator.label = f"{page_res['page'] + 1} / {total_pages}"
+        total_pages = math.ceil(page_res['total'] / page_res['page_size']) if page_res['total'] is not None else 1
+        self.page_indicator.label = f"Page {page_res['page'] + 1} / {total_pages}"
 
         # Track last selection so we can diff changes
         self._last_selection = [ str(opt.value) for opt in page_res['options'] if opt.default ]
 
+    @interaction_error_handler
     async def on_roles_select(self, interaction: discord.Interaction):
         """Run when a change to role selections are made."""
         # Determine which roles were selected or deselected
@@ -277,6 +246,14 @@ class EditRoleListRoleView(discord.ui.View):
             role_list=self._role_list,
             remove_discord_role_ids=rm_discord_ids,
         )
+        print({
+            'add_discord_role_ids': added_discord_role_ids,
+            'rm_discord_role_ids': rm_discord_ids,
+            'initially_selected_discord_role_ids': initially_selected_discord_role_ids,
+            'selected_discord_role_ids': selected_discord_role_ids,
+            'added_discord_role_ids': added_discord_role_ids,
+            'rmed_discord_role_ids': rmed_discord_role_ids,
+        })
 
         # Send message about changes
         add_role_names_by_id = {
@@ -300,12 +277,14 @@ class EditRoleListRoleView(discord.ui.View):
         
         await interaction.response.send_message(content="\n".join(msg_parts))
 
+    @interaction_error_handler
     async def on_prev_button(self, interaction: discord.Interaction):
         """Run when the previous button is clicked."""
         self._page_num -= 1
         await self.roles_select.page(page=self._page_num)
         await interaction.response.send_message(view=self)
 
+    @interaction_error_handler
     async def on_next_button(self, interaction: discord.Interaction):
         """Run when the next button is clicked."""
         self._page_num += 1

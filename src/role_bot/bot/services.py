@@ -1,8 +1,8 @@
-from typing import List, Set
+from typing import List, Set, Tuple, TypedDict
 
 import sqlalchemy
 from role_bot.db import engine, db_session
-from role_bot.models import RoleList, RoleListRole
+from role_bot.models import DiscordRole, RoleList, RoleListRole
 
 DISCORD_OPTIONS_MAX = 25
 """The maximum number of options Discord allows in a select row."""
@@ -47,6 +47,45 @@ class RoleListService:
             return list(sess.query(RoleList)
                 .order_by(sqlalchemy.func.regexp_replace(RoleList.name, r'[^a-zA-Z0-9]', ''))
                 .all())
+        
+    class DiscordRoleWithRoleListRole(TypedDict):
+        """A Discord role with its role list role."""
+        discord_role: DiscordRole
+        """The Discord role."""
+
+        role_list_role: RoleListRole
+        """The role list role join table row."""
+
+    class GuildDiscordRolesPage(TypedDict):
+        data: List['RoleListService.DiscordRoleWithRoleListRole']
+        total_count: int
+        
+    def list_paged_guild_discord_roles(self, guild_id: int, page: int, page_size=DEFAULT_PAGE_SIZE) -> GuildDiscordRolesPage:
+
+        """List roles in a guild with role list join table info. Paginated."""
+        with db_session as sess:
+            all_qs = sess.query(
+                    DiscordRole,
+                    RoleListRole,
+                ).outerjoin(
+                    RoleListRole,
+                    DiscordRole.discord_role_id == RoleListRole.discord_role_id,
+                ).where(
+                    DiscordRole.guild_id == guild_id, # to be safe
+                ).order_by(DiscordRole.name);
+            
+            total_count = all_qs.count()
+            
+            return {
+                'data': [
+                    {
+                        'discord_role': row[0],
+                        'role_list_role': row[1],
+                    }
+                    for row in all_qs.limit(page_size).offset(page * page_size).all()
+                ],
+                'total_count': total_count,
+            }
         
     def rm_discord_roles(
         self,
@@ -113,7 +152,7 @@ class RoleListService:
         :return: List of role list roles
         """
         with db_session as sess:
-            return sess.query(RoleListRole).where(RoleListRole.role_list_id == role_list.id).options(sqlalchemy.orm.joinedload(RoleListRole.role_list))
+            return list(sess.query(RoleListRole).where(RoleListRole.role_list_id == role_list.id).options(sqlalchemy.orm.joinedload(RoleListRole.role_list)).all())
         
     def update_details(self, role_list: RoleList, name: str, description: str):
         """Update role list details.

@@ -1,13 +1,15 @@
-from typing import List
+from typing import Annotated
 import json
 import logging
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 import pydantic
 from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 class Config(BaseSettings):
+    model_config = SettingsConfigDict()
+
     discord_token: pydantic.SecretStr
     """Discord API token"""
 
@@ -23,13 +25,17 @@ class Config(BaseSettings):
     This is useful for debugging and development.
     """
 
+    emoji_guild_id: int
+    """ID of Guild which bot is invited and has permission to create custom emojis."""
+
 class LoadConfigError(Exception):
     """Failed to load configuration."""
 
 def load_config() -> Config:
     try:
         load_dotenv()
-        return Config()
+        # Type ignore because Config constructor automatically loads from .env
+        return Config() # type: ignore
     except pydantic.ValidationError as e:
         raise LoadConfigError(e) from e
 

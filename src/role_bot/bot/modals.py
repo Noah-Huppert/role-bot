@@ -1,10 +1,10 @@
 from typing import Optional
 
 import discord
+from role_bot.bot.embeds import make_role_list_details_summary_embed
 from role_bot.bot.services import RoleListService
 from role_bot.models import RoleList
 from role_bot.db import engine, db_session
-
 
 class RoleListDetailsModal(
     discord.ui.Modal,
@@ -53,6 +53,9 @@ class RoleListDetailsModal(
     
     async def on_submit(self, interaction: discord.Interaction):
         """Run when the modal is submitted. Upsert role list."""
+        if interaction.guild_id is None:
+            raise ValueError("Interaction guild id is None, cannot accept non guild messages")
+
         with db_session as sess:
             if self._role_list is None:
                 # Create new role list
@@ -62,13 +65,25 @@ class RoleListDetailsModal(
                     description=self.description.value,
                 )
 
-                await interaction.response.send_message("Created new role list")
+                # TODO: Fix role list fields being lazy loaded in the method causing an error bc not attached to session
+                await interaction.response.send_message(
+                    embed=make_role_list_details_summary_embed(
+                        role_list=sess.merge(self._role_list),
+                        title="Created Role List",
+                    ),
+                )
             else:
                 # Update existing role list
                 self._role_list_svc.update_details(
                     role_list=self._role_list,
                     name=self.name.value,
                     description=self.description.value,
+                )
+                await interaction.response.send_message(
+                    embed=make_role_list_details_summary_embed(
+                        role_list=sess.merge(self._role_list),
+                        title="Updated Role List",
+                    ),
                 )
 
             sess.add(self._role_list)
